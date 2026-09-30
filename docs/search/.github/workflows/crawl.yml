@@ -1,0 +1,36 @@
+name: Crawl and rebuild search index
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"   # every Monday 03:00 UTC - change to taste
+  workflow_dispatch:       # lets you press "Run workflow" by hand
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Crawl approved sites and build the index
+        run: python crawler/build.py
+      - name: Commit the new index
+        run: |
+          git config user.name "sps-search-bot"
+          git config user.email "sps-search-bot@users.noreply.github.com"
+          git add -A docs/data
+          if git diff --cached --quiet; then
+            echo "No changes to the index."
+          else
+            git commit -m "Update search index"
+            git push
+          fi
