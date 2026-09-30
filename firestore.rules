@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The ONLY account that can approve, deny or delete. Change it here AND in docs/js/config.js.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'joshuasteeljoshua19@gmail.com';
+    }
+
+    // Approved sites: anyone can read (the crawler needs this), only the admin can change.
+    match /sites/{siteId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Requests: any signed-in user can submit one (pending only) and read their own.
+    // Only the admin can read everyone's, approve/deny (update) or delete.
+    match /requests/{requestId} {
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.uid == request.auth.uid);
+
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['url', 'description', 'uid', 'email', 'status', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'pending'
+        && request.resource.data.url is string
+        && request.resource.data.url.size() <= 300
+        && request.resource.data.url.matches('^https?://.+')
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 300
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if isAdmin();
+    }
+  }
+}

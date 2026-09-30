@@ -1,5 +1,5 @@
 {
-  "firebaseProjectId": "YOUR_FIREBASE_PROJECT_ID",
+  "firebaseProjectId": "sps-search",
   "maxPagesPerSite": 200,
   "maxPageBytes": 1500000,
   "maxTextChars": 20000,

@@ -1,5 +1,5 @@
 {
-  "firebaseProjectId": "YOUR_FIREBASE_PROJECT_ID",
+  "firebaseProjectId": "sps-search",
   "maxPagesPerSite": 200,
   "maxPageBytes": 1500000,
   "maxTextChars": 20000,
@@ -7,5 +7,5 @@
   "timeoutSeconds": 15,
   "parallelSites": 6,
   "totalTimeBudgetMinutes": 150,
-  "userAgent": "SPSSearchBot/1.0 (+https://github.com/YOUR_USERNAME/YOUR_REPO)"
+  "userAgent": "SPSSearchBot/1.0 (+https://github.com/8493834/search)"
 }

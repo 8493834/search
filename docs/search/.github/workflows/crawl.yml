@@ -2,8 +2,8 @@ name: Crawl and rebuild search index
 
 on:
   schedule:
-    - cron: "0 3 * * 1"   # every Monday 03:00 UTC - change to taste
-  workflow_dispatch:       # lets you press "Run workflow" by hand
+    - cron: "0 3 * * 1"   
+  workflow_dispatch:       
 
 permissions:
   contents: write

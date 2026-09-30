@@ -10,7 +10,6 @@ let dataVersion = "";
 
 document.title = SITE_NAME;
 
-/* ---------- tiny helpers ---------- */
 function h(tag, props = {}, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props || {})) {
