@@ -268,11 +268,12 @@ async function viewManage() {
   }
   function drawSites() {
     const url = h("input", { type: "url", required: true, placeholder: "https://add-a-site-yourself.com", "aria-label": "Site address" });
+    const note = h("input", { type: "text", maxlength: 300, placeholder: "Short description (shown in search if the site can't be crawled)", "aria-label": "Description" });
     const add = h("button", { class: "btn primary", type: "submit" }, "Add site");
     const form = h("form", { class: "inline-form", onsubmit: (e) => {
       e.preventDefault();
-      withBusy(add, async () => { await be.addSiteDirectly(state.user, url.value); toast("Site added."); await reload(); });
-    } }, url, add);
+      withBusy(add, async () => { await be.addSiteDirectly(state.user, url.value, note.value); toast("Site added."); await reload(); });
+    } }, url, note, add);
     const rows = sites.length ? sites.map((s) => {
       const del = h("button", { class: "btn small danger" }, "Delete");
       del.onclick = () => {

@@ -116,11 +116,11 @@ export async function deleteSite(site) {
   await store.deleteDoc(store.doc(db, "sites", site.id));
 }
 
-export async function addSiteDirectly(user, rawUrl) {
+export async function addSiteDirectly(user, rawUrl, description = "") {
   const { store, db } = await load();
   await store.addDoc(store.collection(db, "sites"), {
     url: cleanUrl(rawUrl),
-    description: "",
+    description: description.trim().slice(0, 300),
     requestedBy: user.email,
     addedAt: store.serverTimestamp(),
   });

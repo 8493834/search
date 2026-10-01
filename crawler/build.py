@@ -1,9 +1,3 @@
-"""Entry point: gather approved sites, crawl them, rebuild docs/data.
-
-Run locally:   python crawler/build.py
-Options:       --seeds-only   ignore Firebase, use seeds.json only
-               --out DIR      write the index somewhere else (default docs/data)
-"""
 import argparse
 import json
 import os
@@ -12,7 +6,7 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(__file__))
-from crawl import crawl_all  # noqa: E402
+from crawl import crawl_all, scope_key, site_key  # noqa: E402
 from indexer import build_index  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,7 +22,7 @@ def load_json(name, default=None):
 
 def firestore_sites(project_id):
     """Read the public `sites` collection through Firestore's REST API (no login needed)."""
-    urls, token = [], None
+    entries, token = [], None
     while True:
         q = {"pageSize": "300"}
         if token:
@@ -40,12 +34,32 @@ def firestore_sites(project_id):
         with urllib.request.urlopen(endpoint, timeout=30) as r:
             data = json.load(r)
         for doc in data.get("documents", []):
-            url = doc.get("fields", {}).get("url", {}).get("stringValue")
+            f = doc.get("fields", {})
+            url = f.get("url", {}).get("stringValue")
             if url:
-                urls.append(url)
+                entries.append({"url": url, "description": f.get("description", {}).get("stringValue", "")})
         token = data.get("nextPageToken")
         if not token:
-            return urls
+            return entries
+
+
+def add_listings(entries, pages):
+    """Sites a plain-HTML crawler can't read (JavaScript apps, login walls, bot blocking) still get a
+    searchable listing built from the address and the description given when they were added."""
+    present = {p["site"] for p in pages}
+    added = []
+    for e in entries:
+        key = scope_key(e["url"])
+        if key in present:
+            continue
+        present.add(key)
+        desc = (e.get("description") or "").strip()
+        pages.append({
+            "url": e["url"], "title": site_key(e["url"]), "description": desc[:300],
+            "text": desc, "links": [], "site": key,
+        })
+        added.append(key)
+    return added
 
 
 def main():
@@ -55,23 +69,26 @@ def main():
     args = ap.parse_args()
 
     cfg = load_json("config.json")
-    seeds = list(load_json("seeds.json", []))
+    entries = [{"url": u, "description": ""} for u in load_json("seeds.json", [])]
     project = cfg.get("firebaseProjectId", "")
 
     if not args.seeds_only and project and not project.startswith("YOUR_"):
         print(f"Reading approved sites from Firebase project '{project}' ...")
         approved = firestore_sites(project)  # if this fails we stop, so we never wipe the index
         print(f"  {len(approved)} approved site(s)")
-        seeds += approved
+        entries += approved
     else:
         print("Firebase not configured (or --seeds-only): using seeds.json only.")
 
-    if not seeds:
+    if not entries:
         print("No sites to crawl. Add some to seeds.json or approve requests. Index left unchanged.")
         return 0
 
-    print(f"Crawling {len(seeds)} site(s) ...")
-    pages = crawl_all(seeds, cfg)
+    print(f"Crawling {len(entries)} site(s) ...")
+    pages = crawl_all([e["url"] for e in entries], cfg)
+    listed = add_listings(entries, pages)
+    if listed:
+        print(f"  Listing only (could not be crawled): {', '.join(listed)}")
     if not pages:
         print("Crawl produced 0 pages. Index left unchanged.")
         return 1
