@@ -53,6 +53,15 @@ def scope_key(url):
     return host if prefix == "/" else host + prefix.rstrip("/")
 
 
+_QUOTED = re.compile(r"""['"]([^'"\s]+)['"]""")
+_URLISH = re.compile(r"^(https?://\S+|\.{0,2}/\S+|[\w\-./]+\.html?(\?\S*)?)$", re.I)
+
+
+def urls_in_handler(code):
+    """Finds addresses inside inline JS like onclick="window.open('https://x/y.html')"."""
+    return [m for m in _QUOTED.findall(code or "") if _URLISH.match(m)]
+
+
 class PageParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -79,6 +88,9 @@ class PageParser(HTMLParser):
                 self.noindex = True
         elif tag == "a" and a.get("href"):
             self.links.append(a["href"])
+        for attr in ("onclick", "data-href", "data-url"):
+            if a.get(attr):
+                self.links.extend(urls_in_handler(a[attr]))
         if tag in SKIP_TEXT_TAGS:
             self._skip[tag] += 1
         if tag in BLOCK_TAGS:
@@ -106,8 +118,11 @@ class PageParser(HTMLParser):
 class Site:
     """Crawls one site (same host only), breadth first."""
 
-    def __init__(self, seed_url, cfg, deadline):
-        self.seed = normalize_url(seed_url)
+    def __init__(self, seed_urls, cfg, deadline):
+        if isinstance(seed_urls, str):
+            seed_urls = [seed_urls]
+        self.starts = [n for n in (normalize_url(u) for u in seed_urls) if n]
+        self.seed = self.starts[0]
         self.host, self.prefix = scope_of(self.seed)
         self.key = scope_key(self.seed)
         self.stats = defaultdict(int)
@@ -166,8 +181,8 @@ class Site:
 
     def crawl(self):
         self._load_robots()
-        queue = deque([self.seed])
-        seen = {self.seed}
+        queue = deque(self.starts)
+        seen = set(self.starts)
         final_seen = set()
         pages, errors = [], 0
         while queue and len(pages) < self.cfg["maxPagesPerSite"] and time.time() < self.deadline:
@@ -233,12 +248,12 @@ def crawl_all(seed_urls, cfg, log=print):
     from concurrent.futures import ThreadPoolExecutor
 
     deadline = time.time() + cfg["totalTimeBudgetMinutes"] * 60
-    seeds, keys = [], set()
+    groups = {}  # scope -> every address given for that scope
     for u in seed_urls:
         n = normalize_url(u)
-        if n and scope_key(n) not in keys:
-            keys.add(scope_key(n))
-            seeds.append(n)
+        if n:
+            groups.setdefault(scope_key(n), []).append(n)
+    seeds = list(groups.values())
 
     def work(seed):
         site = Site(seed, cfg, deadline)
