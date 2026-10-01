@@ -1,4 +1,4 @@
-import { SITE_NAME, GITHUB_REPO, FIREBASE_READY } from "./config.js";
+import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY } from "./config.js";
 import { SearchEngine } from "./engine.js";
 import * as be from "./backend.js";
 
@@ -9,6 +9,9 @@ const state = { user: null, meta: null, indexError: null, manageTab: "requests" 
 let dataVersion = "";
 
 document.title = SITE_NAME;
+// The Windows/Mac/Linux/Android apps add "SPSSearchApp" to the browser identity. Google blocks sign-in inside apps.
+const IN_APP = /SPSSearchApp/.test(navigator.userAgent);
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
 
 /* ---------- tiny helpers ---------- */
 function h(tag, props = {}, ...kids) {
@@ -71,6 +74,8 @@ function renderHeader() {
         h("span", { class: "who", title: state.user.email }, state.user.email),
         h("button", { class: "btn small", onclick: () => be.signOut() }, "Sign out")
       );
+    } else if (IN_APP) {
+      nav.append(h("a", { class: "btn small", href: SITE_URL + "#/manage", target: "_blank", rel: "noopener" }, "Sign in (opens browser)"));
     } else {
       nav.append(h("button", { class: "btn small", onclick: doSignIn }, "Sign in with Google"));
     }
@@ -172,8 +177,12 @@ async function viewAdd() {
   }
   if (!state.user) {
     page.append(h("div", { class: "card" },
-      h("p", { style: "margin-top:0" }, "Sign in with Google to send a request. We only see your email address."),
-      h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
+      h("p", { style: "margin-top:0" }, IN_APP
+        ? "Google doesn't allow sign-in inside apps, so this step happens in your web browser. Your request will still be reviewed the same way."
+        : "Sign in with Google to send a request. We only see your email address."),
+      IN_APP
+        ? h("a", { class: "btn primary", href: SITE_URL + "#/add", target: "_blank", rel: "noopener" }, "Open in browser")
+        : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
     return;
   }
 
@@ -308,8 +317,9 @@ function route() {
 window.addEventListener("hashchange", route);
 
 renderHeader();
+route(); // draw the page right away; never wait for Firebase (it may be slow, blocked or offline)
 be.onUser((user) => {
   state.user = user;
   renderHeader();
   route(); // re-render so signed-in / admin views update
-});
+}).catch(() => {});

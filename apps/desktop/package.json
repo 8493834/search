@@ -1,0 +1,28 @@
+{
+  "name": "sps-search",
+  "productName": "SPS Search",
+  "version": "1.0.0",
+  "description": "SPS Search desktop app",
+  "main": "main.js",
+  "author": { "name": "SPS", "email": "noreply@users.noreply.github.com" },
+  "homepage": "https://8493834.github.io/search/",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^31.7.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "io.github.8493834.spssearch",
+    "productName": "SPS Search",
+    "directories": { "buildResources": "build", "output": "dist" },
+    "files": ["main.js", "offline.html", "package.json"],
+    "win": { "target": "nsis" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "mac": { "target": "dmg", "category": "public.app-category.utilities" },
+    "linux": { "target": ["AppImage", "deb"], "category": "Network" }
+  }
+}

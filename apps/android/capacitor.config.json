@@ -1,0 +1,7 @@
+{
+  "appId": "io.github.spssearch",
+  "appName": "SPS Search",
+  "webDir": "www",
+  "server": { "url": "https://8493834.github.io/search/", "cleartext": false },
+  "android": { "appendUserAgent": "SPSSearchApp" }
+}

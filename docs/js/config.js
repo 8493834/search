@@ -8,6 +8,9 @@ export const SITE_NAME = "SPS Search";
 export const ADMIN_EMAIL = "joshuasteeljoshua19@gmail.com";
 
 // "owner/repo" of this GitHub repository. Powers the "Run crawl now" link in the Manage panel.
+// Public address of this site. The phone/desktop apps open this address.
+export const SITE_URL = "https://8493834.github.io/search/";
+
 export const GITHUB_REPO = "8493834/search";
 
 // Firebase console -> Project settings -> Your apps -> Web app -> "firebaseConfig"

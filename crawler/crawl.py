@@ -128,6 +128,7 @@ class Site:
         self.stats = defaultdict(int)
         self.cfg = cfg
         self.deadline = deadline
+        self.site_deadline = time.time() + cfg.get("maxMinutesPerSite", 6) * 60
         self.robots = None
         self.delay = cfg["crawlDelaySeconds"]
 
@@ -184,8 +185,12 @@ class Site:
         queue = deque(self.starts)
         seen = set(self.starts)
         final_seen = set()
-        pages, errors = [], 0
-        while queue and len(pages) < self.cfg["maxPagesPerSite"] and time.time() < self.deadline:
+        pages, in_a_row = [], 0
+        stop_at = min(self.deadline, self.site_deadline)
+        while queue and len(pages) < self.cfg["maxPagesPerSite"]:
+            if time.time() >= stop_at:
+                self.stats["stopped at the time limit"] += 1
+                break
             url = queue.popleft()
             if not self.robots.can_fetch(self.cfg["userAgent"], url):
                 self.stats["blocked by robots.txt"] += 1
@@ -193,12 +198,13 @@ class Site:
             try:
                 final, html = self._get(url)
             except Exception:
-                errors += 1
+                in_a_row += 1
                 self.stats["fetch errors"] += 1
-                if errors > 25 and not pages:
-                    break  # site looks dead
+                if in_a_row >= 3 and not pages:
+                    break  # site is blocking us or is down: don't waste time on it
                 time.sleep(self.delay)
                 continue
+            in_a_row = 0
             time.sleep(self.delay)
             final_norm = normalize_url(final)
             if html is None:
