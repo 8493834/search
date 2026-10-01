@@ -10,6 +10,7 @@ let dataVersion = "";
 
 document.title = SITE_NAME;
 
+/* ---------- tiny helpers ---------- */
 function h(tag, props = {}, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props || {})) {
@@ -32,6 +33,15 @@ function toast(msg) {
 const safeHref = (u) => (/^https?:\/\//i.test(u) ? u : "#");
 const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "");
 const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; } };
+const scopeKey = (u) => {
+  try {
+    const x = new URL(u);
+    const host = x.hostname.replace(/^www\./, "").toLowerCase();
+    let p = x.pathname || "/";
+    if (!p.endsWith("/")) p = p.split("/").pop().includes(".") ? p.slice(0, p.lastIndexOf("/") + 1) : p + "/";
+    return p === "/" ? host : host + p.replace(/\/$/, "");
+  } catch { return ""; }
+};
 const prettyUrl = (u) => { try { const x = new URL(u); return x.hostname + (x.pathname === "/" ? "" : x.pathname); } catch { return u; } };
 
 async function withBusy(btn, fn) {
@@ -269,7 +279,7 @@ async function viewManage() {
         if (!confirm(`Delete ${s.url}? Its pages leave search after the next crawl.`)) return;
         withBusy(del, async () => { await be.deleteSite(s); toast("Deleted."); await reload(); });
       };
-      const n = counts[hostOf(s.url)];
+      const n = counts[scopeKey(s.url)];
       return h("div", { class: "row" },
         h("div", { class: "info" },
           h("a", { href: safeHref(s.url), target: "_blank", rel: "noopener noreferrer" }, s.url),

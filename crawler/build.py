@@ -1,3 +1,9 @@
+"""Entry point: gather approved sites, crawl them, rebuild docs/data.
+
+Run locally:   python crawler/build.py
+Options:       --seeds-only   ignore Firebase, use seeds.json only
+               --out DIR      write the index somewhere else (default docs/data)
+"""
 import argparse
 import json
 import os

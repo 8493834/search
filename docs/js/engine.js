@@ -1,3 +1,6 @@
+// The search engine that runs in the visitor's browser.
+// tokenize / stem / shardOf are ports of crawler/textproc.py - keep them identical.
+
 const TOKEN_RE = /[\p{L}\p{N}]+/gu;
 const VOWEL_RE = /[aeiouy]/;
 

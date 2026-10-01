@@ -1,3 +1,4 @@
+"""A small, polite web crawler using only the Python standard library."""
 import hashlib
 import re
 import time
@@ -32,6 +33,24 @@ def normalize_url(url):
 def site_key(url):
     host = (urlparse(url).hostname or "").lower()
     return host[4:] if host.startswith("www.") else host
+
+
+def scope_of(url):
+    """A site's scope is its host plus the folder of the address given.
+    https://me.github.io/sps/index.html -> (me.github.io, /sps/)   https://me.github.io/ -> (me.github.io, /)"""
+    path = urlparse(url).path or "/"
+    if path.endswith("/"):
+        prefix = path
+    elif "." in path.rsplit("/", 1)[-1]:
+        prefix = path[: path.rfind("/") + 1]
+    else:
+        prefix = path + "/"
+    return site_key(url), prefix
+
+
+def scope_key(url):
+    host, prefix = scope_of(url)
+    return host if prefix == "/" else host + prefix.rstrip("/")
 
 
 class PageParser(HTMLParser):
@@ -85,14 +104,20 @@ class PageParser(HTMLParser):
 
 
 class Site:
+    """Crawls one site (same host only), breadth first."""
 
     def __init__(self, seed_url, cfg, deadline):
         self.seed = normalize_url(seed_url)
-        self.key = site_key(self.seed)
+        self.host, self.prefix = scope_of(self.seed)
+        self.key = scope_key(self.seed)
+        self.stats = defaultdict(int)
         self.cfg = cfg
         self.deadline = deadline
         self.robots = None
         self.delay = cfg["crawlDelaySeconds"]
+
+    def in_scope(self, url):
+        return site_key(url) == self.host and (urlparse(url).path or "/").startswith(self.prefix)
 
     def _get(self, url, want_html=True):
         req = urllib.request.Request(
@@ -148,18 +173,24 @@ class Site:
         while queue and len(pages) < self.cfg["maxPagesPerSite"] and time.time() < self.deadline:
             url = queue.popleft()
             if not self.robots.can_fetch(self.cfg["userAgent"], url):
+                self.stats["blocked by robots.txt"] += 1
                 continue
             try:
                 final, html = self._get(url)
             except Exception:
                 errors += 1
+                self.stats["fetch errors"] += 1
                 if errors > 25 and not pages:
                     break  # site looks dead
                 time.sleep(self.delay)
                 continue
             time.sleep(self.delay)
             final_norm = normalize_url(final)
-            if html is None or not final_norm or site_key(final_norm) != self.key or final_norm in final_seen:
+            if html is None:
+                self.stats["not html"] += 1
+                continue
+            if not final_norm or not self.in_scope(final_norm) or final_norm in final_seen:
+                self.stats["redirected out of scope or duplicate"] += 1
                 continue
             final_seen.add(final_norm)
             parser = PageParser()
@@ -171,13 +202,17 @@ class Site:
             out_links = []
             for href in parser.links:
                 link = normalize_url(urljoin(base, href.strip()))
-                if not link or site_key(link) != self.key or SKIP_EXT.search(urlparse(link).path):
+                if not link or not self.in_scope(link) or SKIP_EXT.search(urlparse(link).path):
                     continue
                 out_links.append(link)
                 if link not in seen:
                     seen.add(link)
                     queue.append(link)
-            if parser.noindex or len(parser.text) < 40:
+            if parser.noindex:
+                self.stats["noindex"] += 1
+                continue
+            if not (parser.text or parser.title.strip() or parser.description):
+                self.stats["empty page (content probably built by JavaScript)"] += 1
                 continue
             title = re.sub(r"\s+", " ", parser.title).strip() or urlparse(final_norm).path or final_norm
             pages.append(
@@ -194,23 +229,26 @@ class Site:
 
 
 def crawl_all(seed_urls, cfg, log=print):
+    """Crawl every seed (in parallel across different sites) and return all pages."""
     from concurrent.futures import ThreadPoolExecutor
 
     deadline = time.time() + cfg["totalTimeBudgetMinutes"] * 60
     seeds, keys = [], set()
     for u in seed_urls:
         n = normalize_url(u)
-        if n and site_key(n) not in keys:
-            keys.add(site_key(n))
+        if n and scope_key(n) not in keys:
+            keys.add(scope_key(n))
             seeds.append(n)
 
     def work(seed):
+        site = Site(seed, cfg, deadline)
         try:
-            pages = Site(seed, cfg, deadline).crawl()
+            pages = site.crawl()
         except Exception as e:  # never let one site kill the run
             log(f"  ! {seed}: {e}")
             pages = []
-        log(f"  {site_key(seed)}: {len(pages)} pages")
+        why = ", ".join(f"{v} {k}" for k, v in site.stats.items())
+        log(f"  {site.key}: {len(pages)} pages" + (f"  (skipped: {why})" if why else ""))
         return pages
 
     with ThreadPoolExecutor(max_workers=cfg["parallelSites"]) as ex:

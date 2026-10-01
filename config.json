@@ -1,7 +1,7 @@
 {
   "firebaseProjectId": "sps-search",
   "maxPagesPerSite": 20,
-  "maxPageBytes": 1600000,
+  "maxPageBytes": 1500000,
   "maxTextChars": 20000,
   "crawlDelaySeconds": 0.5,
   "timeoutSeconds": 15,

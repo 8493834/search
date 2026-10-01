@@ -1,3 +1,10 @@
+"""Builds the inverted index and writes it as static JSON shards.
+
+Output layout (all under docs/data/):
+  meta.json        corpus stats, doc lengths, PageRank, stop words
+  s<N>.json        postings shard: { term: [docId, tf, docId, tf, ...] }
+  d<N>.json        document chunk: [[url, title, description, text], ...]
+"""
 import json
 import math
 import os
@@ -14,6 +21,7 @@ SNIPPET_CHARS = 1800
 
 
 def pagerank(n, edges, damping=0.85, iters=30):
+    """edges: list of (src, dst) doc ids. Returns a list of scores scaled to max 1."""
     if n == 0:
         return []
     out = [[] for _ in range(n)]
@@ -53,6 +61,8 @@ def build_index(pages, out_dir):
             tf[t] += DESC_WEIGHT
         for t in analyze(p["text"]):
             tf[t] += 1
+        for t in analyze(p["url"].split("://", 1)[-1]):
+            tf[t] += 2  # words in the address (e.g. /recipes/) count too
         doc_len.append(sum(tf.values()))
         for term, count in tf.items():
             postings.setdefault(term, []).append((doc_id, count))

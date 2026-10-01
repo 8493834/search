@@ -1,3 +1,9 @@
+"""Text processing shared by the indexer.
+
+IMPORTANT: docs/js/engine.js contains a line-for-line port of tokenize(),
+stem() and shard_of(). If you change anything here, change it there too,
+or queries will stop matching the index.
+"""
 import re
 
 TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)  # letters + digits, any language
