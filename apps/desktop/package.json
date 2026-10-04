@@ -4,7 +4,10 @@
   "version": "1.0.0",
   "description": "SPS Search desktop app",
   "main": "main.js",
-  "author": { "name": "SPS", "email": "noreply@users.noreply.github.com" },
+  "author": {
+    "name": "SPS",
+    "email": "noreply@users.noreply.github.com"
+  },
   "homepage": "https://8493834.github.io/search/",
   "license": "UNLICENSED",
   "scripts": {
@@ -18,11 +21,43 @@
   "build": {
     "appId": "io.github.8493834.spssearch",
     "productName": "SPS Search",
-    "directories": { "buildResources": "build", "output": "dist" },
-    "files": ["main.js", "offline.html", "package.json"],
-    "win": { "target": "nsis" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
-    "mac": { "target": "dmg", "category": "public.app-category.utilities" },
-    "linux": { "target": ["AppImage", "deb"], "category": "Network" }
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "auth-url.js",
+      "offline.html",
+      "package.json",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network"
+    },
+    "protocols": [
+      {
+        "name": "SPS Search",
+        "schemes": [
+          "spssearch"
+        ]
+      }
+    ]
   }
 }

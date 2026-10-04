@@ -125,3 +125,18 @@ export async function addSiteDirectly(user, rawUrl, description = "") {
     addedAt: store.serverTimestamp(),
   });
 }
+
+// ---- Desktop app sign-in ----
+// Google blocks sign-in inside app windows, so the desktop app sends you to your normal browser.
+// The browser signs in, then hands the result back to the app through the spssearch:// link.
+export async function signInForApp() {
+  const { auth, authInst } = await load();
+  const result = await auth.signInWithPopup(authInst, new auth.GoogleAuthProvider());
+  const cred = auth.GoogleAuthProvider.credentialFromResult(result);
+  return { idToken: cred?.idToken || "", accessToken: cred?.accessToken || "" };
+}
+
+export async function signInWithHandoff({ idToken, accessToken }) {
+  const { auth, authInst } = await load();
+  await auth.signInWithCredential(authInst, auth.GoogleAuthProvider.credential(idToken || null, accessToken || null));
+}

@@ -1,5 +1,8 @@
 name: Build apps (Windows, Mac, Linux, Android)
 
+# Signing is automatic: add the secrets listed in apps/SIGNING.md and the files come out signed.
+# With no secrets the apps still build, just unsigned (Windows/Mac show a warning on first run).
+
 on:
   workflow_dispatch:   # press "Run workflow" in the Actions tab
 
@@ -29,9 +32,23 @@ jobs:
         run: npm install
       - name: Build installer
         working-directory: apps/desktop
-        run: npx electron-builder ${{ matrix.args }} --publish never
+        shell: bash
+        run: |
+          EXTRA=""
+          if [ "${{ matrix.name }}" = "mac" ] && [ -n "$CSC_LINK" ] && [ -n "$APPLE_ID" ]; then
+            EXTRA="-c.mac.notarize=true"   # Apple notarization, only when all Mac secrets exist
+          fi
+          npx electron-builder ${{ matrix.args }} $EXTRA --publish never
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"   # no code-signing certificate: builds unsigned
+          # Windows signing certificate (.pfx, base64) and its password
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # Apple Developer ID certificate (.p12, base64) and notarization login
+          CSC_LINK: ${{ matrix.name == 'mac' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.name == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: SPS-Search-${{ matrix.name }}
@@ -43,6 +60,8 @@ jobs:
 
   android:
     runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,11 +76,35 @@ jobs:
         run: |
           npm install
           npx cap add android
+          npx @capacitor/assets generate --android --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#ffffff' || echo "Icon generation skipped"
           npx cap sync android
-      - name: Build debug APK
+
+      - name: Build signed release APK
+        if: env.KEYSTORE_B64 != ''
         working-directory: apps/android/android
-        run: ./gradlew assembleDebug
+        env:
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KS_PASS \
+            --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASS \
+            --out SPS-Search-android.apk "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --verbose SPS-Search-android.apk
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Build debug APK (no keystore set up)
+        if: env.KEYSTORE_B64 == ''
+        working-directory: apps/android/android
+        run: |
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk SPS-Search-android.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: SPS-Search-android
-          path: apps/android/android/app/build/outputs/apk/debug/app-debug.apk
+          path: apps/android/android/SPS-Search-android.apk

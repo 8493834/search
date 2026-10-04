@@ -9,8 +9,10 @@ const state = { user: null, meta: null, indexError: null, manageTab: "requests" 
 let dataVersion = "";
 
 document.title = SITE_NAME;
-// The Windows/Mac/Linux/Android apps add "SPSSearchApp" to the browser identity. Google blocks sign-in inside apps.
-const IN_APP = /SPSSearchApp/.test(navigator.userAgent);
+// Google blocks sign-in inside app windows. The desktop app signs in through your browser and gets the result back.
+const DESKTOP_APP = !!window.spsApp;                                          // Windows / Mac / Linux app
+const ANDROID_APP = !DESKTOP_APP && /SPSSearchApp/.test(navigator.userAgent);  // Android app
+const APP_SIGNIN_URL = SITE_URL + "#/app-signin";
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
 
 /* ---------- tiny helpers ---------- */
@@ -63,6 +65,13 @@ const engineReady = engine.init().then(
   (e) => { state.indexError = e; }
 );
 
+if (DESKTOP_APP) {
+  window.spsApp.onAuthToken(async (t) => {
+    try { await be.signInWithHandoff(t); toast("Signed in."); }
+    catch (e) { toast("Sign-in failed: " + (e.message || e)); }
+  });
+}
+
 /* ---------- header ---------- */
 function renderHeader() {
   const nav = h("nav", { class: "nav", "aria-label": "Main" },
@@ -74,8 +83,10 @@ function renderHeader() {
         h("span", { class: "who", title: state.user.email }, state.user.email),
         h("button", { class: "btn small", onclick: () => be.signOut() }, "Sign out")
       );
-    } else if (IN_APP) {
-      nav.append(h("a", { class: "btn small", href: SITE_URL + "#/manage", target: "_blank", rel: "noopener" }, "Sign in (opens browser)"));
+    } else if (DESKTOP_APP) {
+      nav.append(h("a", { class: "btn small", href: APP_SIGNIN_URL, target: "_blank", rel: "noopener" }, "Sign in with Google"));
+    } else if (ANDROID_APP) {
+      nav.append(h("a", { class: "btn small", href: SITE_URL, target: "_blank", rel: "noopener" }, "Sign in on the website"));
     } else {
       nav.append(h("button", { class: "btn small", onclick: doSignIn }, "Sign in with Google"));
     }
@@ -177,12 +188,16 @@ async function viewAdd() {
   }
   if (!state.user) {
     page.append(h("div", { class: "card" },
-      h("p", { style: "margin-top:0" }, IN_APP
-        ? "Google doesn't allow sign-in inside apps, so this step happens in your web browser. Your request will still be reviewed the same way."
-        : "Sign in with Google to send a request. We only see your email address."),
-      IN_APP
-        ? h("a", { class: "btn primary", href: SITE_URL + "#/add", target: "_blank", rel: "noopener" }, "Open in browser")
-        : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
+      h("p", { style: "margin-top:0" }, DESKTOP_APP
+        ? "Google doesn't allow sign-in inside apps, so a browser window opens for the sign-in and then sends you back here."
+        : ANDROID_APP
+          ? "Google doesn't allow sign-in inside apps. Open the website in your browser to send a request."
+          : "Sign in with Google to send a request. We only see your email address."),
+      DESKTOP_APP
+        ? h("a", { class: "btn primary", href: APP_SIGNIN_URL, target: "_blank", rel: "noopener" }, "Sign in with Google")
+        : ANDROID_APP
+          ? h("a", { class: "btn primary", href: SITE_URL + "#/add", target: "_blank", rel: "noopener" }, "Open in browser")
+          : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
     return;
   }
 
@@ -227,6 +242,24 @@ async function viewAdd() {
     } catch (e) { mine.textContent = "Couldn't load your requests."; }
   }
   refreshMine();
+}
+
+async function viewAppSignin() {
+  document.title = `Sign in - ${SITE_NAME}`;
+  const msg = h("p", { class: "intro" }, "Sign in with Google here, then you'll be sent back to the SPS Search app.");
+  const btn = h("button", { class: "btn primary" }, "Continue with Google");
+  const back = h("div");
+  btn.onclick = () => withBusy(btn, async () => {
+    const t = await be.signInForApp();
+    const link = "spssearch://auth?" + new URLSearchParams({ id_token: t.idToken, access_token: t.accessToken });
+    msg.textContent = "Signed in. Your browser may ask to open SPS Search. Choose Open.";
+    back.replaceChildren(h("a", { class: "btn primary", href: link }, "Open the SPS Search app"));
+    location.href = link;
+  });
+  $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Sign in"), msg,
+    FIREBASE_READY ? h("div", { class: "card" }, btn, back)
+      : h("div", { class: "notice warn" }, "Sign-in isn't set up yet."),
+    h("p", { class: "hint" }, "Don't have the app? You can just use this website directly.")));
 }
 
 async function viewManage() {
@@ -312,6 +345,7 @@ function route() {
   if (path === "/search" && params.get("q")?.trim()) return viewSearch(params.get("q").trim());
   if (path === "/add") return viewAdd();
   if (path === "/manage") return viewManage();
+  if (path === "/app-signin") return viewAppSignin();
   return viewHome();
 }
 window.addEventListener("hashchange", route);
