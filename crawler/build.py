@@ -1,9 +1,3 @@
-"""Entry point: gather approved sites, crawl them, rebuild docs/data.
-
-Run locally:   python crawler/build.py
-Options:       --seeds-only   ignore Firebase, use seeds.json only
-               --out DIR      write the index somewhere else (default docs/data)
-"""
 import argparse
 import json
 import os
@@ -50,8 +44,6 @@ def firestore_sites(project_id):
 
 
 def add_listings(entries, pages):
-    """Sites a plain-HTML crawler can't read (JavaScript apps, login walls, bot blocking) still get a
-    searchable listing built from the address and the description given when they were added."""
     present = {p["site"] for p in pages}
     added = []
     for e in entries:
