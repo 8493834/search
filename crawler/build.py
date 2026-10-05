@@ -44,20 +44,37 @@ def firestore_sites(project_id):
 
 
 def add_listings(entries, pages):
+    """Sites that are not crawled (listed on purpose, or a plain-HTML crawler can't read them:
+    JavaScript apps, login walls, bot blocking) get one searchable listing built from the name and
+    description they were added with. Entries earlier in the list win, so put approved sites first."""
     present = {p["site"] for p in pages}
-    added = []
+    best = {}
     for e in entries:
         key = scope_key(e["url"])
         if key in present:
             continue
-        present.add(key)
-        desc = (e.get("description") or "").strip()
+        cur = best.setdefault(key, {"url": e["url"], "name": "", "description": ""})
+        cur["name"] = cur["name"] or (e.get("name") or "").strip()
+        cur["description"] = cur["description"] or (e.get("description") or "").strip()
+    for key, e in best.items():
+        desc = e["description"]
         pages.append({
-            "url": e["url"], "title": site_key(e["url"]), "description": desc[:300],
+            "url": e["url"], "title": e["name"] or site_key(e["url"]), "description": desc[:300],
             "text": desc, "links": [], "site": key,
         })
-        added.append(key)
-    return added
+    return list(best)
+
+
+def load_seeds():
+    """seeds.json entries are an address, or {"url", "name", "description", "crawl": false}."""
+    out = []
+    for item in load_json("seeds.json", []):
+        if isinstance(item, str):
+            item = {"url": item}
+        if item.get("url"):
+            out.append({"url": item["url"], "name": item.get("name", ""),
+                        "description": item.get("description", ""), "crawl": item.get("crawl", True)})
+    return out
 
 
 def main():
@@ -67,26 +84,29 @@ def main():
     args = ap.parse_args()
 
     cfg = load_json("config.json")
-    entries = [{"url": u, "description": ""} for u in load_json("seeds.json", [])]
+    seeds = load_seeds()
+    entries = []
     project = cfg.get("firebaseProjectId", "")
 
     if not args.seeds_only and project and not project.startswith("YOUR_"):
         print(f"Reading approved sites from Firebase project '{project}' ...")
         approved = firestore_sites(project)  # if this fails we stop, so we never wipe the index
         print(f"  {len(approved)} approved site(s)")
-        entries += approved
+        entries += approved  # approved sites come first so their own descriptions win
     else:
         print("Firebase not configured (or --seeds-only): using seeds.json only.")
 
+    entries += seeds
     if not entries:
         print("No sites to crawl. Add some to seeds.json or approve requests. Index left unchanged.")
         return 0
 
-    print(f"Crawling {len(entries)} site(s) ...")
-    pages = crawl_all([e["url"] for e in entries], cfg)
+    to_crawl = [e["url"] for e in entries if e.get("crawl", True)]
+    print(f"Crawling {len(to_crawl)} site(s), {len(entries) - len(to_crawl)} listed without crawling ...")
+    pages = crawl_all(to_crawl, cfg)
     listed = add_listings(entries, pages)
     if listed:
-        print(f"  Listing only (could not be crawled): {', '.join(listed)}")
+        print(f"  Listing only: {len(listed)} site(s)")
     if not pages:
         print("Crawl produced 0 pages. Index left unchanged.")
         return 1

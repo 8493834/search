@@ -1,1 +1,374 @@
-[]
+[
+  {
+    "name": "YouTube",
+    "url": "https://www.youtube.com/",
+    "description": "Video sharing site: watch, upload and share videos, music, tutorials, vlogs and live streams.",
+    "crawl": false
+  },
+  {
+    "name": "TikTok",
+    "url": "https://www.tiktok.com/",
+    "description": "Short video app: watch, make and share short funny, music and dance videos.",
+    "crawl": false
+  },
+  {
+    "name": "X (Twitter)",
+    "url": "https://x.com/",
+    "description": "Social network formerly called Twitter: post short messages, follow people, news and trending topics.",
+    "crawl": false
+  },
+  {
+    "name": "Facebook",
+    "url": "https://www.facebook.com/",
+    "description": "Social network: connect with friends and family, share photos, join groups and follow pages.",
+    "crawl": false
+  },
+  {
+    "name": "Instagram",
+    "url": "https://www.instagram.com/",
+    "description": "Photo and video sharing social network with stories and reels.",
+    "crawl": false
+  },
+  {
+    "name": "Reddit",
+    "url": "https://www.reddit.com/",
+    "description": "Forum site of communities (subreddits) for discussion, news, memes and questions.",
+    "crawl": false
+  },
+  {
+    "name": "Pinterest",
+    "url": "https://www.pinterest.com/",
+    "description": "Visual discovery site: save and find ideas, pictures, recipes, crafts and design inspiration.",
+    "crawl": false
+  },
+  {
+    "name": "LinkedIn",
+    "url": "https://www.linkedin.com/",
+    "description": "Professional social network for jobs, careers, hiring and business connections.",
+    "crawl": false
+  },
+  {
+    "name": "Snapchat",
+    "url": "https://www.snapchat.com/",
+    "description": "Messaging and social app with snaps, stories and filters.",
+    "crawl": false
+  },
+  {
+    "name": "Discord",
+    "url": "https://discord.com/",
+    "description": "Chat app with servers, voice and video calls for gaming and community groups.",
+    "crawl": false
+  },
+  {
+    "name": "WhatsApp",
+    "url": "https://www.whatsapp.com/",
+    "description": "Free messaging and calling app for texts, voice and video calls and groups.",
+    "crawl": false
+  },
+  {
+    "name": "Telegram",
+    "url": "https://telegram.org/",
+    "description": "Fast, secure messaging app with channels, groups and bots.",
+    "crawl": false
+  },
+  {
+    "name": "Twitch",
+    "url": "https://www.twitch.tv/",
+    "description": "Live streaming site for video games, esports, music and creators.",
+    "crawl": false
+  },
+  {
+    "name": "Tumblr",
+    "url": "https://www.tumblr.com/",
+    "description": "Blogging and social site for art, photos, fandoms and creative posts.",
+    "crawl": false
+  },
+  {
+    "name": "Threads",
+    "url": "https://www.threads.com/",
+    "description": "Text-based social app from Instagram for conversations and short posts.",
+    "crawl": false
+  },
+  {
+    "name": "Bluesky",
+    "url": "https://bsky.app/",
+    "description": "Open social network for short posts and following people.",
+    "crawl": false
+  },
+  {
+    "name": "Google",
+    "url": "https://www.google.com/",
+    "description": "The most popular web search engine for finding websites, images, videos and news.",
+    "crawl": false
+  },
+  {
+    "name": "Bing",
+    "url": "https://www.bing.com/",
+    "description": "Microsoft web search engine for websites, images, videos, maps and news.",
+    "crawl": false
+  },
+  {
+    "name": "DuckDuckGo",
+    "url": "https://duckduckgo.com/",
+    "description": "Privacy-focused web search engine that does not track you.",
+    "crawl": false
+  },
+  {
+    "name": "Yahoo",
+    "url": "https://www.yahoo.com/",
+    "description": "Web portal with search, news, finance, sports and email.",
+    "crawl": false
+  },
+  {
+    "name": "ChatGPT",
+    "url": "https://chatgpt.com/",
+    "description": "AI chatbot by OpenAI for questions, writing, coding, images and analysis.",
+    "crawl": false
+  },
+  {
+    "name": "Claude",
+    "url": "https://claude.ai/",
+    "description": "AI assistant by Anthropic for writing, coding, analysis and conversation.",
+    "crawl": false
+  },
+  {
+    "name": "Gemini",
+    "url": "https://gemini.google.com/",
+    "description": "Google's AI assistant for questions, writing, coding, images and research.",
+    "crawl": false
+  },
+  {
+    "name": "Grok",
+    "url": "https://grok.com/",
+    "description": "AI chatbot by xAI for answers, research and conversation.",
+    "crawl": false
+  },
+  {
+    "name": "Perplexity",
+    "url": "https://www.perplexity.ai/",
+    "description": "AI answer engine that searches the web and cites its sources.",
+    "crawl": false
+  },
+  {
+    "name": "OpenAI",
+    "url": "https://openai.com/",
+    "description": "AI research company behind ChatGPT, GPT models, Sora and DALL-E.",
+    "crawl": false
+  },
+  {
+    "name": "Anthropic",
+    "url": "https://www.anthropic.com/",
+    "description": "AI safety company that makes the Claude AI assistant.",
+    "crawl": false
+  },
+  {
+    "name": "Wikipedia",
+    "url": "https://www.wikipedia.org/",
+    "description": "Free online encyclopedia with millions of articles written by volunteers.",
+    "crawl": false
+  },
+  {
+    "name": "IMDb",
+    "url": "https://www.imdb.com/",
+    "description": "Movie, TV show and celebrity database with ratings, reviews and trailers.",
+    "crawl": false
+  },
+  {
+    "name": "Netflix",
+    "url": "https://www.netflix.com/",
+    "description": "Streaming service for TV shows, movies, anime and documentaries.",
+    "crawl": false
+  },
+  {
+    "name": "Disney+",
+    "url": "https://www.disneyplus.com/",
+    "description": "Streaming service for Disney, Pixar, Marvel, Star Wars and National Geographic.",
+    "crawl": false
+  },
+  {
+    "name": "Hulu",
+    "url": "https://www.hulu.com/",
+    "description": "Streaming service for TV shows, movies and live TV.",
+    "crawl": false
+  },
+  {
+    "name": "Prime Video",
+    "url": "https://www.primevideo.com/",
+    "description": "Amazon streaming service for movies, TV shows and originals.",
+    "crawl": false
+  },
+  {
+    "name": "Spotify",
+    "url": "https://www.spotify.com/",
+    "description": "Music and podcast streaming service with playlists and artists.",
+    "crawl": false
+  },
+  {
+    "name": "SoundCloud",
+    "url": "https://soundcloud.com/",
+    "description": "Music and audio platform where artists upload and share tracks.",
+    "crawl": false
+  },
+  {
+    "name": "Amazon",
+    "url": "https://www.amazon.com/",
+    "description": "Online shopping store for electronics, books, clothes, home goods and more.",
+    "crawl": false
+  },
+  {
+    "name": "eBay",
+    "url": "https://www.ebay.com/",
+    "description": "Online marketplace for buying and selling new and used items and auctions.",
+    "crawl": false
+  },
+  {
+    "name": "Etsy",
+    "url": "https://www.etsy.com/",
+    "description": "Marketplace for handmade, vintage and custom gifts and crafts.",
+    "crawl": false
+  },
+  {
+    "name": "Walmart",
+    "url": "https://www.walmart.com/",
+    "description": "Retail store online: groceries, electronics, clothing and household items.",
+    "crawl": false
+  },
+  {
+    "name": "AliExpress",
+    "url": "https://www.aliexpress.com/",
+    "description": "Online shopping marketplace with low-priced products shipped worldwide.",
+    "crawl": false
+  },
+  {
+    "name": "Temu",
+    "url": "https://www.temu.com/",
+    "description": "Online shopping app with low-priced fashion, gadgets and home items.",
+    "crawl": false
+  },
+  {
+    "name": "SHEIN",
+    "url": "https://www.shein.com/",
+    "description": "Online fashion store for clothing, shoes and accessories.",
+    "crawl": false
+  },
+  {
+    "name": "PayPal",
+    "url": "https://www.paypal.com/",
+    "description": "Online payments: send money, pay for purchases and receive payments.",
+    "crawl": false
+  },
+  {
+    "name": "GitHub",
+    "url": "https://github.com/",
+    "description": "Code hosting site for software projects, open source and version control with Git.",
+    "crawl": false
+  },
+  {
+    "name": "Stack Overflow",
+    "url": "https://stackoverflow.com/",
+    "description": "Question and answer site for programming and coding help.",
+    "crawl": false
+  },
+  {
+    "name": "Gmail",
+    "url": "https://mail.google.com/",
+    "description": "Google's free email service.",
+    "crawl": false
+  },
+  {
+    "name": "Outlook",
+    "url": "https://outlook.live.com/",
+    "description": "Microsoft's email and calendar service.",
+    "crawl": false
+  },
+  {
+    "name": "Google Drive",
+    "url": "https://drive.google.com/",
+    "description": "Cloud storage for files, documents, photos and sharing.",
+    "crawl": false
+  },
+  {
+    "name": "Google Maps",
+    "url": "https://maps.google.com/",
+    "description": "Maps, directions, traffic and places to find nearby.",
+    "crawl": false
+  },
+  {
+    "name": "Dropbox",
+    "url": "https://www.dropbox.com/",
+    "description": "Cloud storage to save, sync and share files.",
+    "crawl": false
+  },
+  {
+    "name": "Zoom",
+    "url": "https://zoom.us/",
+    "description": "Video meetings, calls and online classes.",
+    "crawl": false
+  },
+  {
+    "name": "Canva",
+    "url": "https://www.canva.com/",
+    "description": "Free online design tool for posters, presentations, logos and social media graphics.",
+    "crawl": false
+  },
+  {
+    "name": "Microsoft",
+    "url": "https://www.microsoft.com/",
+    "description": "Windows, Office, Xbox, Azure and Microsoft 365 software and products.",
+    "crawl": false
+  },
+  {
+    "name": "Apple",
+    "url": "https://www.apple.com/",
+    "description": "iPhone, iPad, Mac, Apple Watch and Apple services.",
+    "crawl": false
+  },
+  {
+    "name": "Roblox",
+    "url": "https://www.roblox.com/",
+    "description": "Online game platform where you play and create games with friends.",
+    "crawl": false
+  },
+  {
+    "name": "Minecraft",
+    "url": "https://www.minecraft.net/",
+    "description": "Sandbox building and survival video game.",
+    "crawl": false
+  },
+  {
+    "name": "Steam",
+    "url": "https://store.steampowered.com/",
+    "description": "Store and platform for buying and playing PC video games.",
+    "crawl": false
+  },
+  {
+    "name": "Epic Games",
+    "url": "https://store.epicgames.com/",
+    "description": "Game store with Fortnite and free weekly PC games.",
+    "crawl": false
+  },
+  {
+    "name": "BBC",
+    "url": "https://www.bbc.com/",
+    "description": "World news, sport, weather, TV and radio from the British Broadcasting Corporation.",
+    "crawl": false
+  },
+  {
+    "name": "CNN",
+    "url": "https://www.cnn.com/",
+    "description": "Breaking news, politics, world events and video.",
+    "crawl": false
+  },
+  {
+    "name": "Khan Academy",
+    "url": "https://www.khanacademy.org/",
+    "description": "Free online lessons in math, science, history and more.",
+    "crawl": false
+  },
+  {
+    "name": "Duolingo",
+    "url": "https://www.duolingo.com/",
+    "description": "Free app for learning languages like Spanish, French and German.",
+    "crawl": false
+  }
+]
