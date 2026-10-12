@@ -1,9 +1,11 @@
 [
-  {"name": "Snail - the programing language that is made up",
+  {
+    "name": "Snail - the programing language that is made up",
     "url": "https://8493834.github.io/snail",
      "description": "a site that decodes the coding language snail made by the cretor of this site",
     "crawl": false
-  {
+    },
+    {
     "name": "YouTube",
     "url": "https://www.youtube.com/",
     "description": "Video sharing site: watch, upload and share videos, music, tutorials, vlogs and live streams.",
