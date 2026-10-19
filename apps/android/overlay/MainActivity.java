@@ -3,7 +3,13 @@ package io.github.spssearch;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
+import android.content.res.Configuration;
+import android.os.Build;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -33,11 +39,8 @@ import java.util.regex.Pattern;
 /** SPS Search for Android: a small browser with tabs and an address bar. The SPS Search site is the home page. */
 public class MainActivity extends Activity {
     static final String SITE_URL = "https://8493834.github.io/search/";
-    static final int INK = Color.parseColor("#101b22");
-    static final int BAR = Color.parseColor("#dfe5e8");
-    static final int TAB_ON = Color.WHITE;
-    static final int TAB_OFF = Color.parseColor("#eef2f4");
-    static final int ACCENT = Color.parseColor("#2436e8");
+    // Colours follow the phone's light/dark setting (set in onCreate).
+    int INK, BAR, TAB_ON, TAB_OFF;
     static final Pattern HOSTLIKE = Pattern.compile("^[\\w-]+(\\.[\\w-]+)+(:\\d+)?([/?#]\\S*)?$");
 
     static class Tab {
@@ -47,18 +50,95 @@ public class MainActivity extends Activity {
         boolean checked;
     }
 
+    /** A button drawn with lines, so it never depends on fonts or emoji glyphs. */
+    static class Icon extends View {
+        static final int BACK = 0, FWD = 1, RELOAD = 2, HOME = 3, PLUS = 4, CLOSE = 5;
+        final int kind;
+        final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        final float dp;
+        Icon(android.content.Context c, int kind, int color, float dp) {
+            super(c);
+            this.kind = kind;
+            this.dp = dp;
+            paint.setColor(color);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(2f * dp);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setStrokeJoin(Paint.Join.ROUND);
+            setClickable(true);
+            setFocusable(true);
+        }
+        @Override protected void onMeasure(int w, int h) {
+            int size = Math.round((kind == CLOSE ? 32 : 44) * dp);
+            setMeasuredDimension(resolve(size, w), resolve(Math.round(44 * dp), h));
+        }
+        static int resolve(int want, int spec) {
+            int mode = View.MeasureSpec.getMode(spec), size = View.MeasureSpec.getSize(spec);
+            if (mode == View.MeasureSpec.EXACTLY) return size;
+            if (mode == View.MeasureSpec.AT_MOST) return Math.min(want, size);
+            return want;
+        }
+        @Override protected void onDraw(Canvas c) {
+            float cx = getWidth() / 2f, cy = getHeight() / 2f, r = (kind == CLOSE ? 5f : 8f) * dp;
+            switch (kind) {
+                case BACK:
+                case FWD: {
+                    float d = kind == BACK ? -1f : 1f;
+                    c.drawLine(cx - d * r, cy, cx + d * r, cy, paint);
+                    c.drawLine(cx + d * r, cy, cx + d * (r - 6f * dp), cy - 6f * dp, paint);
+                    c.drawLine(cx + d * r, cy, cx + d * (r - 6f * dp), cy + 6f * dp, paint);
+                    break;
+                }
+                case RELOAD: {
+                    RectF box = new RectF(cx - r, cy - r, cx + r, cy + r);
+                    c.drawArc(box, -60f, 290f, false, paint);
+                    float ex = cx + r * 0.5f, ey = cy - r * 0.87f;
+                    c.drawLine(ex, ey, ex + 6f * dp, ey - 1f * dp, paint);
+                    c.drawLine(ex, ey, ex + 1f * dp, ey + 6f * dp, paint);
+                    break;
+                }
+                case HOME: {
+                    Path p = new Path();
+                    p.moveTo(cx - r, cy);
+                    p.lineTo(cx, cy - r);
+                    p.lineTo(cx + r, cy);
+                    c.drawPath(p, paint);
+                    Path b = new Path();
+                    b.moveTo(cx - r * 0.65f, cy - r * 0.35f);
+                    b.lineTo(cx - r * 0.65f, cy + r);
+                    b.lineTo(cx + r * 0.65f, cy + r);
+                    b.lineTo(cx + r * 0.65f, cy - r * 0.35f);
+                    c.drawPath(b, paint);
+                    break;
+                }
+                case PLUS:
+                    c.drawLine(cx - r, cy, cx + r, cy, paint);
+                    c.drawLine(cx, cy - r, cx, cy + r, paint);
+                    break;
+                default:
+                    c.drawLine(cx - r, cy - r, cx + r, cy + r, paint);
+                    c.drawLine(cx - r, cy + r, cx + r, cy - r, paint);
+            }
+        }
+    }
+
     final ArrayList<Tab> tabs = new ArrayList<>();
     Tab active;
     FrameLayout content;
     LinearLayout tabRow;
     EditText urlBox;
-    TextView backBtn, fwdBtn;
+    View backBtn, fwdBtn;
     float dp;
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         dp = getResources().getDisplayMetrics().density;
+        boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        INK = dark ? Color.parseColor("#e6eef2") : Color.parseColor("#101b22");
+        BAR = dark ? Color.parseColor("#0a1014") : Color.parseColor("#dfe5e8");
+        TAB_ON = dark ? Color.parseColor("#1d2a32") : Color.WHITE;
+        TAB_OFF = dark ? Color.parseColor("#131d23") : Color.parseColor("#eef2f4");
         buildUi();
         Uri data = getIntent() == null ? null : getIntent().getData();
         String start = data != null && data.getScheme() != null && data.getScheme().startsWith("http") ? data.toString() : SITE_URL;
@@ -67,24 +147,24 @@ public class MainActivity extends Activity {
 
     int px(int v) { return Math.round(v * dp); }
 
-    TextView button(String label, int size, View.OnClickListener l, String desc) {
-        TextView t = new TextView(this);
-        t.setText(label);
-        t.setTextSize(size);
-        t.setTextColor(INK);
-        t.setGravity(Gravity.CENTER);
-        t.setMinWidth(px(40));
-        t.setMinHeight(px(40));
-        t.setOnClickListener(l);
-        t.setContentDescription(desc);
-        t.setFocusable(true);
-        return t;
+    Icon icon(int kind, View.OnClickListener l, String desc) {
+        Icon i = new Icon(this, kind, INK, dp);
+        i.setOnClickListener(l);
+        i.setContentDescription(desc);
+        return i;
+    }
+
+    /** Draw these bars in software: it avoids graphics glitches seen on some Chromebooks and tablets. */
+    void safe(View v) {
+        v.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        if (Build.VERSION.SDK_INT >= 29) v.setForceDarkAllowed(false);
     }
 
     void buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BAR);
+        if (Build.VERSION.SDK_INT >= 29) root.setForceDarkAllowed(false);
         root.setOnApplyWindowInsetsListener((v, insets) -> {   // keep clear of the status and navigation bars
             v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
                     insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
@@ -98,9 +178,12 @@ public class MainActivity extends Activity {
         scroll.setHorizontalScrollBarEnabled(false);
         tabRow = new LinearLayout(this);
         tabRow.setOrientation(LinearLayout.HORIZONTAL);
+        safe(tabRow);
         scroll.addView(tabRow);
         strip.addView(scroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        strip.addView(button("+", 22, v -> openTab(SITE_URL, false), "New tab"));
+        strip.setBackgroundColor(BAR);
+        safe(strip);
+        strip.addView(icon(Icon.PLUS, v -> openTab(SITE_URL, false), "New tab"));
         root.addView(strip, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(42)));
 
         // toolbar
@@ -108,15 +191,17 @@ public class MainActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBackgroundColor(TAB_ON);
-        backBtn = button("←", 20, v -> { if (active != null && active.web.canGoBack()) active.web.goBack(); }, "Back");
-        fwdBtn = button("→", 20, v -> { if (active != null && active.web.canGoForward()) active.web.goForward(); }, "Forward");
+        safe(bar);
+        backBtn = icon(Icon.BACK, v -> { if (active != null && active.web.canGoBack()) active.web.goBack(); }, "Back");
+        fwdBtn = icon(Icon.FWD, v -> { if (active != null && active.web.canGoForward()) active.web.goForward(); }, "Forward");
         bar.addView(backBtn);
         bar.addView(fwdBtn);
-        bar.addView(button("↻", 20, v -> { if (active != null) active.web.reload(); }, "Reload"));
+        bar.addView(icon(Icon.RELOAD, v -> { if (active != null) active.web.reload(); }, "Reload"));
         urlBox = new EditText(this);
         urlBox.setSingleLine(true);
         urlBox.setTextSize(14);
         urlBox.setTextColor(INK);
+        urlBox.setHintTextColor(Color.parseColor("#8a9aa3"));
         urlBox.setHint("Search or enter address");
         urlBox.setSelectAllOnFocus(true);
         urlBox.setImeOptions(EditorInfo.IME_ACTION_GO);
@@ -137,7 +222,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(0, px(38), 1f);
         ulp.setMargins(px(4), px(4), px(4), px(4));
         bar.addView(urlBox, ulp);
-        bar.addView(button("⌂", 20, v -> { if (active != null) active.web.loadUrl(SITE_URL); }, "SPS Search home"));
+        bar.addView(icon(Icon.HOME, v -> { if (active != null) active.web.loadUrl(SITE_URL); }, "SPS Search home"));
         root.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(48)));
 
         content = new FrameLayout(this);
@@ -206,14 +291,7 @@ public class MainActivity extends Activity {
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);
             title.setMaxWidth(px(130));
             title.setPadding(px(10), 0, px(4), 0);
-            TextView x = new TextView(this);
-            x.setText("×");
-            x.setTextSize(18);
-            x.setTextColor(INK);
-            x.setGravity(Gravity.CENTER);
-            x.setMinWidth(px(32));
-            x.setContentDescription("Close tab");
-            x.setOnClickListener(v -> closeTab(t));
+            Icon x = icon(Icon.CLOSE, v -> closeTab(t), "Close tab");
             chip.addView(title);
             chip.addView(x);
             chip.setOnClickListener(v -> select(t));
