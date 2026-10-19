@@ -109,10 +109,16 @@ export class SearchEngine {
       page.map(async ([id, score]) => {
         const chunk = await this.loadChunk(Math.floor(id / m.chunk));
         const [url, title, description, text] = chunk[id % m.chunk];
-        return { id, score, url, title, description, snippet: makeSnippet(text || description, stems) };
+        return { id, score, url, title, description, text: text || "", snippet: makeSnippet(text || description, stems) };
       })
     );
-    return { terms, total: ranked.length, results, ms: Math.round(performance.now() - t0) };
+    const idfs = {};
+    for (const term of terms) {
+      const post = shards.get(shardOf(term, m.shards))[term];
+      const df = post ? post.length / 2 : 0;
+      idfs[term] = Math.log(1 + (m.numDocs - df + 0.5) / (df + 0.5));
+    }
+    return { terms, idfs, total: ranked.length, results, ms: Math.round(performance.now() - t0) };
   }
 }
 
@@ -153,5 +159,93 @@ export function makeSnippet(text, stems, size = 200) {
   }
   if (pos < end) segs.push({ text: text.slice(pos, end), hit: false });
   if (end < text.length) segs.push({ text: "…", hit: false });
+  return segs;
+}
+
+const BOILER = /(cookie|sign in|log in|subscribe|privacy policy|terms of|all rights reserved|copyright|click here|javascript|menu|skip to)/i;
+
+function splitSentences(text) {
+  const parts = text.replace(/\s+/g, " ").match(/[^.!?\n]+(?:[.!?]+|$)/g) || [];
+  const out = [];
+  for (const raw of parts) {
+    const p = raw.trim();
+    if (!p) continue;
+    if (out.length && (out[out.length - 1].length < 25 || p.length < 25)) out[out.length - 1] += " " + p;
+    else out.push(p);
+  }
+  return out;
+}
+
+const jaccard = (a, b) => {
+  let i = 0;
+  for (const x of a) if (b.has(x)) i++;
+  const u = a.size + b.size - i;
+  return u ? i / u : 0;
+};
+
+/** Builds an extractive overview from search results. Returns null if nothing good enough. */
+export function buildOverview(res, { maxSentences = 4, maxDocs = 5 } = {}) {
+  if (!res || !res.results || !res.results.length) return null;
+  const terms = res.terms || [];
+  const idfs = res.idfs || {};
+  const totalIdf = terms.reduce((a, t) => a + (idfs[t] || 1), 0) || 1;
+  const cands = [];
+  res.results.slice(0, maxDocs).forEach((r, di) => {
+    const titleStems = new Set(tokenize(r.title || "").map(stem));
+    splitSentences(r.text || r.description || "").forEach((sent, pos) => {
+      if (sent.length < 30 || sent.length > 320) return;
+      if (!/^[\p{Lu}\p{N}]/u.test(sent)) return;
+      const letters = (sent.match(/\p{L}/gu) || []).length;
+      if (letters / sent.length < 0.7) return;
+      if (sent === sent.toUpperCase()) return;
+      if (BOILER.test(sent)) return;
+      const words = tokenize(sent).map(stem);
+      const set = new Set(words);
+      let cov = 0;
+      for (const t of terms) {
+        if (set.has(t)) cov += idfs[t] || 1;
+        else if (titleStems.has(t)) cov += 0.5 * (idfs[t] || 1);
+      }
+      cov /= totalIdf;
+      if (cov < 0.5) return;
+      const score = cov * (1 / (1 + 0.15 * di)) + 0.05 / (1 + pos);
+      cands.push({ sent, set, di, pos, score, r });
+    });
+  });
+  cands.sort((a, b) => b.score - a.score);
+  const picked = [];
+  const perDoc = {};
+  for (const c of cands) {
+    if (picked.length >= maxSentences) break;
+    if ((perDoc[c.di] || 0) >= 2) continue;
+    if (picked.some((p) => jaccard(p.set, c.set) > 0.5)) continue;
+    picked.push(c);
+    perDoc[c.di] = (perDoc[c.di] || 0) + 1;
+  }
+  if (!picked.length) return null;
+  picked.sort((a, b) => a.di - b.di || a.pos - b.pos);
+  const nums = new Map();
+  const sources = [];
+  const stems = new Set(terms);
+  const sentences = picked.map((c) => {
+    if (!nums.has(c.di)) {
+      nums.set(c.di, nums.size + 1);
+      sources.push({ n: nums.get(c.di), title: c.r.title || c.r.url, url: c.r.url });
+    }
+    return { text: c.sent, segments: highlight(c.sent, stems), n: nums.get(c.di), url: c.r.url, title: c.r.title };
+  });
+  return { sentences, sources };
+}
+
+function highlight(text, stems) {
+  const segs = [];
+  let pos = 0;
+  for (const m of text.matchAll(TOKEN_RE)) {
+    if (!stems.has(stem(m[0].toLowerCase()))) continue;
+    if (m.index > pos) segs.push({ text: text.slice(pos, m.index), hit: false });
+    segs.push({ text: m[0], hit: true });
+    pos = m.index + m[0].length;
+  }
+  if (pos < text.length) segs.push({ text: text.slice(pos), hit: false });
   return segs;
 }
