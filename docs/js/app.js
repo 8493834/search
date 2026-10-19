@@ -191,7 +191,7 @@ async function viewSearch(q) {
     if (useAI) runAI(ai, res, ov, quotes);
     return h("aside", { class: "overview", "aria-label": "Overview" },
       h("h2", {}, "Overview"), ai, quotes || body,
-      h("p", { class: "ov-src" }, "Sources: ", ov.sources.map((x, i) => [i ? " · " : "", h("a", { href: safeHref(x.url), rel: "noopener noreferrer" }, `[${x.n}] ${x.title}`)])),
+      h("p", { class: "ov-src" }, "Sources: ", ov.sources.map((x, i) => [i ? " · " : "", h("a", { href: safeHref(x.url), rel: "noopener noreferrer" }, `[${x.n}] ${x.title}`)]).flat()),
       h("p", { class: "ov-fine" }, "Quoted automatically from the top results unless the AI option is on. It can miss context. Turn it off in Settings."));
   }
   async function loadMore() {
