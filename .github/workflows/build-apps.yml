@@ -84,6 +84,10 @@ jobs:
           npx cap add android
           npx @capacitor/assets generate --android --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#ffffff' || echo "Icon generation skipped"
           npx cap sync android
+          # Replace the default screen with the browser (tabs + address bar).
+          # The package name is the appId in capacitor.config.json, io.github.spssearch.
+          cp overlay/MainActivity.java android/app/src/main/java/io/github/spssearch/MainActivity.java
+          grep -q "package io.github.spssearch;" android/app/src/main/java/io/github/spssearch/MainActivity.java
 
       - name: Build signed release APK
         if: env.KEYSTORE_B64 != ''

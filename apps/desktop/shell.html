@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src data: https: http:">
+<title>SPS Search</title>
+<style>
+  :root { --bg:#dfe5e8; --tab:#eef2f4; --tab-on:#ffffff; --ink:#101b22; --muted:#566871; --line:#c3cfd5; --accent:#2436e8; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0a1014; --tab:#131d23; --tab-on:#1d2a32; --ink:#e6eef2; --muted:#93a5af; --line:#26353d; --accent:#8c98ff; } }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:13px system-ui, sans-serif; user-select:none; overflow:hidden; }
+  #tabs { display:flex; align-items:flex-end; height:38px; padding:6px 8px 0; gap:2px; }
+  .tab { display:flex; align-items:center; gap:6px; min-width:60px; max-width:220px; flex:1 1 0; height:32px; padding:0 8px; border-radius:8px 8px 0 0; background:transparent; cursor:default; position:relative; }
+  .tab:hover { background:var(--tab); }
+  .tab[aria-selected="true"] { background:var(--tab-on); }
+  .tab img, .tab .dot { width:16px; height:16px; flex:none; border-radius:3px; }
+  .tab .dot { background:var(--line); }
+  .tab.loading .dot { background:none; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .tab .title { flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .tab .x { flex:none; width:18px; height:18px; border:0; border-radius:50%; background:none; color:var(--muted); font-size:14px; line-height:18px; padding:0; cursor:pointer; }
+  .tab .x:hover { background:var(--line); color:var(--ink); }
+  #new { flex:none; width:28px; height:28px; margin:0 0 2px 4px; border:0; border-radius:50%; background:none; color:var(--ink); font-size:18px; cursor:pointer; }
+  #new:hover { background:var(--tab); }
+  #bar { display:flex; align-items:center; gap:4px; height:42px; padding:0 8px; background:var(--tab-on); border-bottom:1px solid var(--line); }
+  #bar button { width:30px; height:30px; border:0; border-radius:50%; background:none; color:var(--ink); font-size:16px; cursor:pointer; }
+  #bar button:hover:not(:disabled) { background:var(--tab); }
+  #bar button:disabled { opacity:.35; cursor:default; }
+  #url { flex:1; height:30px; border:1px solid var(--line); border-radius:15px; padding:0 14px; background:var(--tab); color:var(--ink); font:inherit; font-size:13.5px; user-select:text; outline:none; }
+  #url:focus { border-color:var(--accent); background:var(--tab-on); }
+  button:focus-visible { outline:2px solid var(--accent); }
+</style>
+<div id="tabs" role="tablist" aria-label="Tabs"></div>
+<div id="bar">
+  <button id="back" title="Back" aria-label="Back">&#8592;</button>
+  <button id="fwd" title="Forward" aria-label="Forward">&#8594;</button>
+  <button id="reload" title="Reload" aria-label="Reload">&#8635;</button>
+  <button id="home" title="SPS Search home" aria-label="Home">&#8962;</button>
+  <input id="url" type="text" spellcheck="false" autocomplete="off" placeholder="Search or enter address" aria-label="Address">
+</div>
+<script src="shell.js"></script>

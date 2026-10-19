@@ -154,17 +154,19 @@ async function viewSearch(q) {
   async function runAI(el, res, ov) {
     try {
       const llm = await loadLLM();
+      const why = llm.aiUnsupportedReason();
+      if (why) { el.textContent = why + " Showing the extracted sentences instead."; return; }
       const passages = res.results.slice(0, 4).map((r) => {
         const own = ov.sentences.filter((x) => x.url === r.url).map((x) => x.text).join(" ");
         return `${r.title || r.url}. ${own || r.description || (r.text || "").slice(0, 400)}`.slice(0, 700);
       });
       const text = await llm.writeOverview(q, passages,
         (t) => { el.textContent = t; },
-        (pct) => { el.textContent = `Downloading the AI model (first time only): ${pct}%`; });
+        (pct) => { el.textContent = pct == null ? "Writing…" : `Loading the AI model (first time downloads it): ${pct}%`; });
       if (!text) el.remove();
       else el.append(h("span", { class: "ov-badge" }, " AI-written, may be wrong. Check the sources."));
     } catch (e) {
-      el.textContent = "The AI model couldn't run on this device, so here are the extracted sentences instead.";
+      el.textContent = "The AI model couldn't run on this device, so here are the extracted sentences instead. You can turn it off in Settings.";
     }
   }
   function overviewPanel(res) {
@@ -233,8 +235,12 @@ function viewSettings() {
   };
   const aiRow = h("div", { class: "card setting" },
     h("div", { class: "info" }, h("strong", { id: "ai-label" }, "AI-written overview"),
-      h("p", { class: "sub" }, "Needs Overview above to be on. Uses a small language model that runs on your device. The first search downloads about 400 MB, then it's cached. Slower on phones, and it can get things wrong. Nothing you search is sent to anyone. Off by default.")),
+      h("p", { class: "sub" }, "Needs Overview above to be on. On computers with 4 GB of memory it uses a smaller, less capable \"lite\" model. Uses a small language model that runs on your device. The first search downloads about 100–250 MB, then it's cached. Runs on the CPU, so it takes a while on phones and older computers, and it can get things wrong. Nothing you search is sent to anyone. Off by default.")),
     mkSwitch("aiwrite", "ai-label"));
+  loadLLM().then((l) => {
+    const why = l.aiUnsupportedReason();
+    if (why) { const sw2 = aiRow.querySelector(".switch"); sw2.disabled = true; sw2.setAttribute("aria-checked", "false"); aiRow.querySelector(".info").append(h("p", { class: "hint" }, why + " AI-written overview is unavailable here.")); }
+  }).catch(() => {});
   $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Settings"),
     h("div", { class: "card setting" },
       h("div", { class: "info" }, h("strong", { id: "ov-label" }, "Overview"),

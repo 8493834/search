@@ -28,6 +28,9 @@
     "files": [
       "main.js",
       "preload.js",
+      "shell-preload.js",
+      "shell.html",
+      "shell.js",
       "auth-url.js",
       "offline.html",
       "package.json",
