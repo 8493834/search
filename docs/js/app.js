@@ -161,7 +161,11 @@ async function viewSearch(q) {
       const timer = setTimeout(() => ctl.abort(), 15000);
       const r = await fetch(OVERVIEW_API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ q, passages }) });
       clearTimeout(timer);
-      if (!r.ok) throw new Error(String(r.status));
+      if (!r.ok) {
+        let d = "";
+        try { const j = await r.json(); d = j.detail || j.error || ""; } catch {}
+        throw new Error(`AI helper error ${r.status}${d ? ": " + d : ""}`);
+      }
       const text = String((await r.json()).text || "").trim();
       // Keep the answer only if it sticks to the sources.
       const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
@@ -172,8 +176,10 @@ async function viewSearch(q) {
         return r2 ? h("sup", {}, h("a", { href: safeHref(r2.url), rel: "noopener noreferrer", "aria-label": `Source ${m[1]}` }, part)) : part;
       }), h("span", { class: "ov-badge" }, " AI-written, can be wrong. Check the sources."));
     } catch (e) {
-      el.remove();
-      quotes.open = true; // fall back to the quoted sentences
+      // Fall back to the quoted sentences, and say briefly why the AI part didn't show.
+      el.className = "ov-fine";
+      el.textContent = e.name === "AbortError" ? "AI overview timed out, showing quotes instead." : `AI overview unavailable (${e.message}). Showing quotes instead.`;
+      quotes.open = true;
     }
   }
   function overviewPanel(res) {
