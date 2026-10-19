@@ -1,7 +1,6 @@
-import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY } from "./config.js";
+import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL } from "./config.js";
 import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
-const loadLLM = () => import("./llm.js");
 import * as be from "./backend.js";
 
 const $top = document.getElementById("top");
@@ -151,28 +150,30 @@ async function viewSearch(q) {
 
   const PAGE = 10;
   let offset = 0;
-  async function runAI(el, res, ov) {
+  // Optional: ask the free online helper (see SETUP-OVERVIEW.md) to write the overview from the top results.
+  async function runAI(el, res, ov, quotes) {
     try {
-      const llm = await loadLLM();
-      const why = llm.aiUnsupportedReason();
-      if (why) { el.textContent = why + " Showing the extracted sentences instead."; return; }
-      const passages = res.results.slice(0, 4).map((r) => {
+      const passages = res.results.slice(0, 5).map((r) => {
         const own = ov.sentences.filter((x) => x.url === r.url).map((x) => x.text).join(" ");
-        return `${r.title || r.url}. ${own || r.description || (r.text || "").slice(0, 400)}`.slice(0, 700);
+        return `${r.title || r.url}. ${own || r.description || (r.text || "").slice(0, 500)}`.slice(0, 800);
       });
-      const text = await llm.writeOverview(q, passages,
-        (t) => { el.textContent = t; },
-        (pct) => { el.textContent = pct == null ? "Writing…" : `Loading the AI model (first time downloads it): ${pct}%`; });
-      // Small models make things up. Only keep the text if it sticks to the sources and reads like an answer.
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 15000);
+      const r = await fetch(OVERVIEW_API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ q, passages }) });
+      clearTimeout(timer);
+      if (!r.ok) throw new Error(String(r.status));
+      const text = String((await r.json()).text || "").trim();
+      // Keep the answer only if it sticks to the sources.
       const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
-      const words = tokenize(text).filter((w) => w.length > 3).map(stem);
-      const grounded = words.length >= 5 && words.filter((w) => src.has(w)).length / words.length >= 0.7;
-      if (!text || !grounded || (text.match(/\?/g) || []).length >= 2) {
-        el.textContent = "The AI model's answer wasn't reliable enough to show, so here are the extracted sentences instead.";
-      }
-      else el.append(h("span", { class: "ov-badge" }, " AI-written, may be wrong. Check the sources."));
+      const words = tokenize(text.replace(/\[\d+\]/g, "")).filter((w) => w.length > 3).map(stem);
+      if (words.length < 5 || words.filter((w) => src.has(w)).length / words.length < 0.6) throw new Error("ungrounded");
+      el.replaceChildren(...text.split(/(\[\d+\])/).map((part) => {
+        const m = part.match(/^\[(\d+)\]$/), r2 = m && res.results[Number(m[1]) - 1];
+        return r2 ? h("sup", {}, h("a", { href: safeHref(r2.url), rel: "noopener noreferrer", "aria-label": `Source ${m[1]}` }, part)) : part;
+      }), h("span", { class: "ov-badge" }, " AI-written, can be wrong. Check the sources."));
     } catch (e) {
-      el.textContent = "The AI model couldn't run on this device, so here are the extracted sentences instead. You can turn it off in Settings.";
+      el.remove();
+      quotes.open = true; // fall back to the quoted sentences
     }
   }
   function overviewPanel(res) {
@@ -184,12 +185,14 @@ async function viewSearch(q) {
       body.append(...s.segments.map((x) => (x.hit ? h("mark", {}, x.text) : x.text)),
         h("sup", {}, h("a", { href: safeHref(s.url), rel: "noopener noreferrer", "aria-label": `Source ${s.n}` }, `[${s.n}]`)));
     });
-    const ai = getSetting("aiwrite") ? h("p", { class: "ov-ai", "aria-live": "polite" }, "Loading the AI model…") : null;
-    if (ai) runAI(ai, res, ov);
+    const useAI = !!OVERVIEW_API_URL && getSetting("aionline");
+    const ai = useAI ? h("p", { class: "ov-ai", "aria-live": "polite" }, "Writing…") : null;
+    const quotes = useAI ? h("details", { class: "ov-quotes" }, h("summary", {}, "Quoted from the results"), body) : null;
+    if (useAI) runAI(ai, res, ov, quotes);
     return h("aside", { class: "overview", "aria-label": "Overview" },
-      h("h2", {}, "Overview"), ai, body,
+      h("h2", {}, "Overview"), ai, quotes || body,
       h("p", { class: "ov-src" }, "Sources: ", ov.sources.map((x, i) => [i ? " · " : "", h("a", { href: safeHref(x.url), rel: "noopener noreferrer" }, `[${x.n}] ${x.title}`)])),
-      h("p", { class: "ov-fine" }, "Assembled automatically from the top results. Not written by a language model, so it can miss context. Turn it off in Settings."));
+      h("p", { class: "ov-fine" }, "Quoted automatically from the top results unless the AI option is on. It can miss context. Turn it off in Settings."));
   }
   async function loadMore() {
     const res = await engine.search(q, { limit: PAGE, offset });
@@ -239,25 +242,20 @@ function viewSettings() {
     };
     return b;
   };
+  const ready = !!OVERVIEW_API_URL;
+  const aiSw = mkSwitch("aionline", "ai-label");
+  if (!ready) { aiSw.disabled = true; aiSw.setAttribute("aria-checked", "false"); }
   const aiRow = h("div", { class: "card setting" },
-    h("div", { class: "info" }, h("strong", { id: "ai-label" }, "AI-written overview"),
-      h("p", { class: "sub" }, "Needs Overview above to be on. On computers with 4 GB of memory it uses a smaller, less capable \"lite\" model. Uses a small language model that runs on your device. The first search downloads about 100–250 MB, then it's cached. Runs on the CPU, so it takes a while on phones and older computers, and it can get things wrong. Nothing you search is sent to anyone. Off by default.")),
-    mkSwitch("aiwrite", "ai-label"));
-  const betterRow = h("div", { class: "card setting" },
-    h("div", { class: "info" }, h("strong", { id: "better-label" }, "Better quality (needs more memory)"),
-      h("p", { class: "sub" }, "Uses the larger 360M model: about 250 MB to download and roughly 1 GB of free memory while it runs. Writes better, but can crash a computer with 4 GB. Only matters if the AI-written overview is on. Off by default.")),
-    mkSwitch("aibetter", "better-label"));
-  loadLLM().then((l) => {
-    const why = l.aiUnsupportedReason();
-    if (why) { const sw2 = aiRow.querySelector(".switch"); sw2.disabled = true; sw2.setAttribute("aria-checked", "false"); aiRow.querySelector(".info").append(h("p", { class: "hint" }, why + " AI-written overview is unavailable here.")); }
-  }).catch(() => {});
+    h("div", { class: "info" }, h("strong", { id: "ai-label" }, "AI-written overview (online)"),
+      h("p", { class: "sub" }, "Needs Overview above to be on. Asks a free AI service to write the summary. Nothing is downloaded to your device. Your search words and the top result snippets are sent to Cloudflare to do this. It can be wrong and has a daily limit; if it fails you get the quoted version. Off by default."),
+      ready ? null : h("p", { class: "hint" }, "Not set up yet. The site owner needs to follow SETUP-OVERVIEW.md.")),
+    aiSw);
   $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Settings"),
     h("div", { class: "card setting" },
       h("div", { class: "info" }, h("strong", { id: "ov-label" }, "Overview"),
         h("p", { class: "sub" }, "Show a short summary above search results, built from sentences in the top results with links to where each came from. It is not written by an AI language model. Off by default.")),
       sw),
     aiRow,
-    betterRow,
     note));
 }
 

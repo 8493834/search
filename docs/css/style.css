@@ -184,3 +184,4 @@ label { display: block; font-weight: 600; margin: 0 0 .25rem; }
 .overview .ov-ai { margin: 0 0 8px; line-height: 1.55; }
 .overview .ov-badge { color: var(--muted); font-size: .8rem; }
 .setting + .setting { margin-top: 12px; }
+.overview .ov-quotes summary { cursor: pointer; font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
