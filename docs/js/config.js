@@ -9,3 +9,4 @@ export const FIREBASE_CONFIG = {
   appId: "1:233921986620:web:4c748ba81ac7127533433",
 };
 export const OVERVIEW_API_URL = "https://sps-overview.joshuasteeljoshua19.workers.dev/";
+export const FIREBASE_READY = !FIREBASE_CONFIG.apiKey.startsWith("YOUR_");
