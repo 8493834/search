@@ -103,6 +103,29 @@ export class SearchEngine {
     }
     ranked.sort((a, b) => b[1] - a[1]);
 
+    // Group by site: the site's home page first, then its other matching pages, then the next site.
+    // Sites are ordered by their best-scoring page. Only the top matches are regrouped.
+    const TOP = 200;
+    const head = ranked.slice(0, TOP);
+    const urls = await Promise.all(head.map(async ([id]) => {
+      const chunk = await this.loadChunk(Math.floor(id / m.chunk));
+      return chunk[id % m.chunk][0];
+    }));
+    const groups = new Map(); // host -> { root, rest }
+    head.forEach((row, i) => {
+      let host = "", isRoot = false;
+      try { const u = new URL(urls[i]); host = u.hostname.replace(/^www\./, "").toLowerCase(); isRoot = u.pathname === "/" || u.pathname === ""; } catch {}
+      if (!groups.has(host)) groups.set(host, { root: null, rest: [] });
+      const g = groups.get(host);
+      if (isRoot && !g.root) g.root = row; else g.rest.push(row);
+    });
+    const regrouped = [];
+    for (const g of groups.values()) {
+      if (g.root) regrouped.push(g.root);
+      regrouped.push(...g.rest);
+    }
+    ranked.splice(0, head.length, ...regrouped);
+
     const page = ranked.slice(offset, offset + limit);
     const stems = new Set(terms);
     const results = await Promise.all(
