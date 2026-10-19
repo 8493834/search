@@ -1,5 +1,7 @@
 import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY } from "./config.js";
-import { SearchEngine } from "./engine.js";
+import { SearchEngine, buildOverview } from "./engine.js";
+import { getSetting, setSetting } from "./settings.js";
+const loadLLM = () => import("./llm.js");
 import * as be from "./backend.js";
 
 const $top = document.getElementById("top");
@@ -75,7 +77,8 @@ if (DESKTOP_APP) {
 /* ---------- header ---------- */
 function renderHeader() {
   const nav = h("nav", { class: "nav", "aria-label": "Main" },
-    h("a", { href: "#/add" }, "Get my site on here"));
+    h("a", { href: "#/add" }, "Get my site on here"),
+    h("a", { href: "#/settings" }, "Settings"));
   if (FIREBASE_READY) {
     if (state.user) {
       if (be.isAdmin(state.user)) nav.append(h("a", { class: "btn small primary", href: "#/manage" }, "Manage"));
@@ -148,6 +151,38 @@ async function viewSearch(q) {
 
   const PAGE = 10;
   let offset = 0;
+  async function runAI(el, res, ov) {
+    try {
+      const llm = await loadLLM();
+      const passages = res.results.slice(0, 4).map((r) => {
+        const own = ov.sentences.filter((x) => x.url === r.url).map((x) => x.text).join(" ");
+        return `${r.title || r.url}. ${own || r.description || (r.text || "").slice(0, 400)}`.slice(0, 700);
+      });
+      const text = await llm.writeOverview(q, passages,
+        (t) => { el.textContent = t; },
+        (pct) => { el.textContent = `Downloading the AI model (first time only): ${pct}%`; });
+      if (!text) el.remove();
+      else el.append(h("span", { class: "ov-badge" }, " AI-written, may be wrong. Check the sources."));
+    } catch (e) {
+      el.textContent = "The AI model couldn't run on this device, so here are the extracted sentences instead.";
+    }
+  }
+  function overviewPanel(res) {
+    const ov = buildOverview(res);
+    if (!ov) return null;
+    const body = h("p", { class: "ov-text" });
+    ov.sentences.forEach((s, i) => {
+      if (i) body.append(" ");
+      body.append(...s.segments.map((x) => (x.hit ? h("mark", {}, x.text) : x.text)),
+        h("sup", {}, h("a", { href: safeHref(s.url), rel: "noopener noreferrer", "aria-label": `Source ${s.n}` }, `[${s.n}]`)));
+    });
+    const ai = getSetting("aiwrite") ? h("p", { class: "ov-ai", "aria-live": "polite" }, "Loading the AI model…") : null;
+    if (ai) runAI(ai, res, ov);
+    return h("aside", { class: "overview", "aria-label": "Overview" },
+      h("h2", {}, "Overview"), ai, body,
+      h("p", { class: "ov-src" }, "Sources: ", ov.sources.map((x, i) => [i ? " · " : "", h("a", { href: safeHref(x.url), rel: "noopener noreferrer" }, `[${x.n}] ${x.title}`)])),
+      h("p", { class: "ov-fine" }, "Assembled automatically from the top results. Not written by a language model, so it can miss context. Turn it off in Settings."));
+  }
   async function loadMore() {
     const res = await engine.search(q, { limit: PAGE, offset });
     if (offset === 0) {
@@ -159,6 +194,7 @@ async function viewSearch(q) {
         return;
       }
       meta.textContent = `${res.total.toLocaleString()} result${res.total === 1 ? "" : "s"} in ${res.ms} ms`;
+      if (getSetting("overview")) { const p = overviewPanel(res); if (p) list.before(p); }
     }
     for (const r of res.results) {
       const titleLink = h("a", { href: safeHref(r.url), rel: "noopener noreferrer" }, r.title || r.url);
@@ -172,6 +208,40 @@ async function viewSearch(q) {
   }
   more.onclick = () => withBusy(more, loadMore);
   await loadMore();
+}
+
+function viewSettings() {
+  document.title = `Settings - ${SITE_NAME}`;
+  const on = getSetting("overview");
+  const sw = h("button", { class: "switch", role: "switch", "aria-checked": String(on), id: "ov-switch", "aria-labelledby": "ov-label" }, h("span", { class: "knob" }));
+  const note = h("p", { class: "hint" }, "Saved on this device.");
+  sw.onclick = () => {
+    const next = sw.getAttribute("aria-checked") !== "true";
+    const ok = setSetting("overview", next);
+    sw.setAttribute("aria-checked", String(next));
+    note.textContent = ok ? "Saved on this device." : "Couldn't save. It will reset when you leave this page.";
+  };
+  const mkSwitch = (key, labelId) => {
+    const b = h("button", { class: "switch", role: "switch", "aria-checked": String(!!getSetting(key)), "aria-labelledby": labelId }, h("span", { class: "knob" }));
+    b.onclick = () => {
+      const next = b.getAttribute("aria-checked") !== "true";
+      const ok = setSetting(key, next);
+      b.setAttribute("aria-checked", String(next));
+      note.textContent = ok ? "Saved on this device." : "Couldn't save. It will reset when you leave this page.";
+    };
+    return b;
+  };
+  const aiRow = h("div", { class: "card setting" },
+    h("div", { class: "info" }, h("strong", { id: "ai-label" }, "AI-written overview"),
+      h("p", { class: "sub" }, "Needs Overview above to be on. Uses a small language model that runs on your device. The first search downloads about 400 MB, then it's cached. Slower on phones, and it can get things wrong. Nothing you search is sent to anyone. Off by default.")),
+    mkSwitch("aiwrite", "ai-label"));
+  $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Settings"),
+    h("div", { class: "card setting" },
+      h("div", { class: "info" }, h("strong", { id: "ov-label" }, "Overview"),
+        h("p", { class: "sub" }, "Show a short summary above search results, built from sentences in the top results with links to where each came from. It is not written by an AI language model. Off by default.")),
+      sw),
+    aiRow,
+    note));
 }
 
 async function viewAdd() {
@@ -344,6 +414,7 @@ function route() {
   document.title = SITE_NAME;
   if (path === "/search" && params.get("q")?.trim()) return viewSearch(params.get("q").trim());
   if (path === "/add") return viewAdd();
+  if (path === "/settings") return viewSettings();
   if (path === "/manage") return viewManage();
   if (path === "/app-signin") return viewAppSignin();
   return viewHome();
