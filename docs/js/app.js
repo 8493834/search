@@ -1,5 +1,5 @@
 import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY } from "./config.js";
-import { SearchEngine, buildOverview } from "./engine.js";
+import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
 const loadLLM = () => import("./llm.js");
 import * as be from "./backend.js";
@@ -163,7 +163,13 @@ async function viewSearch(q) {
       const text = await llm.writeOverview(q, passages,
         (t) => { el.textContent = t; },
         (pct) => { el.textContent = pct == null ? "Writing…" : `Loading the AI model (first time downloads it): ${pct}%`; });
-      if (!text) el.remove();
+      // Small models make things up. Only keep the text if it sticks to the sources and reads like an answer.
+      const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
+      const words = tokenize(text).filter((w) => w.length > 3).map(stem);
+      const grounded = words.length >= 5 && words.filter((w) => src.has(w)).length / words.length >= 0.7;
+      if (!text || !grounded || (text.match(/\?/g) || []).length >= 2) {
+        el.textContent = "The AI model's answer wasn't reliable enough to show, so here are the extracted sentences instead.";
+      }
       else el.append(h("span", { class: "ov-badge" }, " AI-written, may be wrong. Check the sources."));
     } catch (e) {
       el.textContent = "The AI model couldn't run on this device, so here are the extracted sentences instead. You can turn it off in Settings.";
@@ -237,6 +243,10 @@ function viewSettings() {
     h("div", { class: "info" }, h("strong", { id: "ai-label" }, "AI-written overview"),
       h("p", { class: "sub" }, "Needs Overview above to be on. On computers with 4 GB of memory it uses a smaller, less capable \"lite\" model. Uses a small language model that runs on your device. The first search downloads about 100–250 MB, then it's cached. Runs on the CPU, so it takes a while on phones and older computers, and it can get things wrong. Nothing you search is sent to anyone. Off by default.")),
     mkSwitch("aiwrite", "ai-label"));
+  const betterRow = h("div", { class: "card setting" },
+    h("div", { class: "info" }, h("strong", { id: "better-label" }, "Better quality (needs more memory)"),
+      h("p", { class: "sub" }, "Uses the larger 360M model: about 250 MB to download and roughly 1 GB of free memory while it runs. Writes better, but can crash a computer with 4 GB. Only matters if the AI-written overview is on. Off by default.")),
+    mkSwitch("aibetter", "better-label"));
   loadLLM().then((l) => {
     const why = l.aiUnsupportedReason();
     if (why) { const sw2 = aiRow.querySelector(".switch"); sw2.disabled = true; sw2.setAttribute("aria-checked", "false"); aiRow.querySelector(".info").append(h("p", { class: "hint" }, why + " AI-written overview is unavailable here.")); }
@@ -247,6 +257,7 @@ function viewSettings() {
         h("p", { class: "sub" }, "Show a short summary above search results, built from sentences in the top results with links to where each came from. It is not written by an AI language model. Off by default.")),
       sw),
     aiRow,
+    betterRow,
     note));
 }
 

@@ -1,6 +1,6 @@
 // Per-device settings, kept in localStorage. Everything is off unless listed here as on.
 const KEY = "sps_settings";
-const DEFAULTS = { overview: false, aiwrite: false };
+const DEFAULTS = { overview: false, aiwrite: false, aibetter: false };
 
 export function getSettings() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; }

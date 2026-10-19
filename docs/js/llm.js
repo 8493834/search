@@ -2,8 +2,10 @@
 // The model downloads from Hugging Face once and is cached by the browser; nothing you search is sent anywhere.
 // 8 GB or more: the 360M model (about 250 MB download). 4 GB or unknown: a "lite" 135M model (about 100 MB), less capable but light.
 export function modelChoice() {
-  const big = !navigator.deviceMemory || navigator.deviceMemory >= 8;
-  return big && navigator.deviceMemory ? "HuggingFaceTB/SmolLM2-360M-Instruct" : "HuggingFaceTB/SmolLM2-135M-Instruct";
+  let better = false;
+  try { better = !!JSON.parse(localStorage.getItem("sps_settings") || "{}").aibetter; } catch {}
+  const big = navigator.deviceMemory >= 8; // only Chrome-style browsers report this
+  return better || big ? "HuggingFaceTB/SmolLM2-360M-Instruct" : "HuggingFaceTB/SmolLM2-135M-Instruct";
 }
 let worker = null, seq = 0;
 
