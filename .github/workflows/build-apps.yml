@@ -88,6 +88,24 @@ jobs:
           # The package name is the appId in capacitor.config.json, io.github.spssearch.
           cp overlay/MainActivity.java android/app/src/main/java/io/github/spssearch/MainActivity.java
           grep -q "package io.github.spssearch;" android/app/src/main/java/io/github/spssearch/MainActivity.java
+          # Let the browser sign-in hand its result back: open spssearch://auth links in this app.
+          python3 - <<'PY'
+          p = "android/app/src/main/AndroidManifest.xml"
+          s = open(p).read()
+          f = """
+                  <intent-filter>
+                      <action android:name="android.intent.action.VIEW" />
+                      <category android:name="android.intent.category.DEFAULT" />
+                      <category android:name="android.intent.category.BROWSABLE" />
+                      <data android:scheme="spssearch" android:host="auth" />
+                  </intent-filter>
+          """
+          assert "</activity>" in s
+          if 'android:scheme="spssearch"' not in s:
+              s = s.replace("</activity>", f + "</activity>", 1)
+          open(p, "w").write(s)
+          PY
+          grep -q 'android:scheme="spssearch"' android/app/src/main/AndroidManifest.xml
 
       - name: Build signed release APK
         if: env.KEYSTORE_B64 != ''

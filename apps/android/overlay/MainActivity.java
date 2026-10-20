@@ -34,6 +34,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.net.URLEncoder;
+import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
 
@@ -125,6 +126,7 @@ public class MainActivity extends Activity {
 
     final ArrayList<Tab> tabs = new ArrayList<>();
     Tab active;
+    String pendingIdToken, pendingAccessToken; // sign-in result from the browser, waiting for the site to be on screen
     FrameLayout content;
     LinearLayout tabRow;
     EditText urlBox;
@@ -147,6 +149,7 @@ public class MainActivity extends Activity {
         Uri data = getIntent() == null ? null : getIntent().getData();
         String start = data != null && data.getScheme() != null && data.getScheme().startsWith("http") ? data.toString() : SITE_URL;
         openTab(start, false);
+        takeSignIn(data);
     }
 
     int px(int v) { return Math.round(v * dp); }
@@ -350,7 +353,7 @@ public class MainActivity extends Activity {
                 if (tab == active && !urlBox.hasFocus() && url != null) urlBox.setText(url);
                 refreshUi();
             }
-            @Override public void onPageFinished(WebView v, String url) { refreshUi(); }
+            @Override public void onPageFinished(WebView v, String url) { refreshUi(); deliverSignIn(); }
             @Override public void onReceivedError(WebView v, WebResourceRequest r, android.webkit.WebResourceError e) {
                 if (r.isForMainFrame()) {
                     v.loadData("<meta name=viewport content='width=device-width'><body style='font-family:sans-serif;text-align:center;padding:3rem'>"
@@ -379,8 +382,39 @@ public class MainActivity extends Activity {
         else super.onBackPressed();
     }
 
+    /** spssearch://auth?id_token=...&access_token=... is how the browser hands the Google sign-in back to the app. */
+    void takeSignIn(Uri d) {
+        if (d == null || !"spssearch".equals(d.getScheme()) || !"auth".equals(d.getHost())) return;
+        String id = d.getQueryParameter("id_token"), acc = d.getQueryParameter("access_token");
+        if ((id == null || id.isEmpty()) && (acc == null || acc.isEmpty())) return;
+        pendingIdToken = id == null ? "" : id;
+        pendingAccessToken = acc == null ? "" : acc;
+        deliverSignIn();
+    }
+
+    /** Only ever hands the tokens to a tab that is showing the SPS Search site, never to other websites. */
+    void deliverSignIn() {
+        if (pendingIdToken == null) return;
+        for (Tab t : tabs) {
+            String u = t.web.getUrl();
+            if (isSite(u) && t.web.getProgress() == 100) {
+                try {
+                    JSONObject o = new JSONObject();
+                    o.put("idToken", pendingIdToken);
+                    o.put("accessToken", pendingAccessToken);
+                    t.web.evaluateJavascript("window.dispatchEvent(new CustomEvent('sps-auth',{detail:" + o.toString() + "}))", null);
+                    pendingIdToken = null;
+                    pendingAccessToken = null;
+                    select(t);
+                } catch (Exception ignored) { }
+                return;
+            }
+        }
+    }
+
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        takeSignIn(intent.getData());
         Uri d = intent.getData();
         if (d != null && d.getScheme() != null && d.getScheme().startsWith("http")) openTab(d.toString(), false);
     }

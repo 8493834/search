@@ -67,6 +67,13 @@ const engineReady = engine.init().then(
   (e) => { state.indexError = e; }
 );
 
+if (ANDROID_APP) {
+  // The Android app passes the sign-in result in with this event (see MainActivity.java).
+  window.addEventListener("sps-auth", async (e) => {
+    try { await be.signInWithHandoff(e.detail || {}); toast("Signed in."); }
+    catch (err) { toast("Sign-in failed: " + (err.message || err)); }
+  });
+}
 if (DESKTOP_APP) {
   window.spsApp.onAuthToken(async (t) => {
     try { await be.signInWithHandoff(t); toast("Signed in."); }
@@ -86,10 +93,8 @@ function renderHeader() {
         h("span", { class: "who", title: state.user.email }, state.user.email),
         h("button", { class: "btn small", onclick: () => be.signOut() }, "Sign out")
       );
-    } else if (DESKTOP_APP) {
+    } else if (DESKTOP_APP || ANDROID_APP) {
       nav.append(h("a", { class: "btn small", href: APP_SIGNIN_URL, target: "_blank", rel: "noopener" }, "Sign in with Google"));
-    } else if (ANDROID_APP) {
-      nav.append(h("a", { class: "btn small", href: SITE_URL, target: "_blank", rel: "noopener" }, "Sign in on the website"));
     } else {
       nav.append(h("button", { class: "btn small", onclick: doSignIn }, "Sign in with Google"));
     }
@@ -323,16 +328,12 @@ async function viewAdd() {
   }
   if (!state.user) {
     page.append(h("div", { class: "card" },
-      h("p", { style: "margin-top:0" }, DESKTOP_APP
-        ? "Google doesn't allow sign-in inside apps, so a browser window opens for the sign-in and then sends you back here."
-        : ANDROID_APP
-          ? "Google doesn't allow sign-in inside apps. Open the website in your browser to send a request."
-          : "Sign in with Google to send a request. We only see your email address."),
-      DESKTOP_APP
+      h("p", { style: "margin-top:0" }, DESKTOP_APP || ANDROID_APP
+        ? "Google doesn't allow sign-in inside apps, so your browser opens for the sign-in and then sends you back here."
+        : "Sign in with Google to send a request. We only see your email address."),
+      DESKTOP_APP || ANDROID_APP
         ? h("a", { class: "btn primary", href: APP_SIGNIN_URL, target: "_blank", rel: "noopener" }, "Sign in with Google")
-        : ANDROID_APP
-          ? h("a", { class: "btn primary", href: SITE_URL + "#/add", target: "_blank", rel: "noopener" }, "Open in browser")
-          : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
+        : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
     return;
   }
 
@@ -390,11 +391,9 @@ async function viewPanelRequest() {
   if (!FIREBASE_READY) { page.append(h("div", { class: "notice warn" }, "Sign-in isn't set up yet.")); return; }
   if (!state.user) {
     page.append(h("div", { class: "card" },
-      h("p", { style: "margin-top:0" }, DESKTOP_APP ? "A browser window opens for the Google sign-in and then sends you back here."
-        : ANDROID_APP ? "Google doesn't allow sign-in inside apps. Open the website in your browser to send a request."
+      h("p", { style: "margin-top:0" }, DESKTOP_APP || ANDROID_APP ? "Your browser opens for the Google sign-in and then sends you back here."
         : "Sign in with Google to send a request. We only see your email address."),
-      DESKTOP_APP ? h("a", { class: "btn primary", href: APP_SIGNIN_URL, target: "_blank", rel: "noopener" }, "Sign in with Google")
-        : ANDROID_APP ? h("a", { class: "btn primary", href: SITE_URL + "#/panel-request", target: "_blank", rel: "noopener" }, "Open in browser")
+      DESKTOP_APP || ANDROID_APP ? h("a", { class: "btn primary", href: APP_SIGNIN_URL, target: "_blank", rel: "noopener" }, "Sign in with Google")
         : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
     return;
   }
