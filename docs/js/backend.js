@@ -145,8 +145,10 @@ export async function signInWithHandoff({ idToken, accessToken }) {
 export const PANEL_TYPES = ["Company", "Organisation", "Country", "Place", "Person", "Product", "Other"];
 const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 8).map((x) => x.slice(0, 120));
 
-export async function submitPanelRequest(user, f) {
-  const { store, db } = await load();
+export const LINK_LABELS = ["Wikipedia", "X", "Instagram", "Facebook", "YouTube", "LinkedIn", "TikTok", "GitHub"];
+
+/** Checks and cleans what was typed in a panel form. */
+export function panelFields(f) {
   const name = String(f.name || "").trim().slice(0, 80);
   if (!name) throw new Error("Enter the name.");
   const summary = String(f.summary || "").trim().slice(0, 400);
@@ -155,14 +157,33 @@ export async function submitPanelRequest(user, f) {
   if (!PANEL_TYPES.includes(f.type)) throw new Error("Choose a type.");
   const links = [];
   for (const [label, raw] of Object.entries(f.links || {})) {
-    if (!raw || !String(raw).trim()) continue;
-    if (!["Wikipedia", "X", "Instagram", "Facebook", "YouTube", "LinkedIn", "TikTok", "GitHub"].includes(label)) continue;
+    if (!raw || !String(raw).trim() || !LINK_LABELS.includes(label)) continue;
     links.push(`${label}: ${cleanUrl(raw)}`);
   }
+  return { name, type: f.type, website, summary, facts: lines(f.facts), links };
+}
+
+export async function submitPanelRequest(user, f) {
+  const { store, db } = await load();
   await store.addDoc(store.collection(db, "panelRequests"), {
-    name, type: f.type, website, summary, facts: lines(f.facts), links,
+    ...panelFields(f),
     uid: user.uid, email: user.email, status: "pending", createdAt: store.serverTimestamp(),
   });
+}
+
+// Admin: create or change an approved panel. Using a built-in panel's id replaces that built-in panel.
+export async function savePanel(user, id, f, aliases) {
+  const { store, db } = await load();
+  const data = { ...panelFields(f), aliases: aliases.map((a) => String(a).trim().toLowerCase()).filter(Boolean).slice(0, 12),
+    requestedBy: user.email, addedAt: store.serverTimestamp() };
+  if (id) await store.setDoc(store.doc(db, "panels", id), data);
+  else await store.addDoc(store.collection(db, "panels"), data);
+}
+
+// Admin: change a site's address or description.
+export async function updateSite(id, rawUrl, description) {
+  const { store, db } = await load();
+  await store.updateDoc(store.doc(db, "sites", id), { url: cleanUrl(rawUrl), description: String(description || "").trim().slice(0, 300) });
 }
 
 export async function listMyPanelRequests(user) {

@@ -127,7 +127,9 @@ function loadPanels() {
         // Approved panels people requested. Never let a slow or offline Firebase hold up search.
         community = await Promise.race([be.listPanels().catch(() => []), new Promise((res) => setTimeout(() => res([]), 3000))]);
       }
-      return [...builtIn, ...community];
+      const byId = new Map(); // an approved panel with a built-in's id replaces it
+      for (const p of [...builtIn, ...community]) byId.set(p.id, p);
+      return [...byId.values()];
     })();
   }
   return panelsLoad;
@@ -437,6 +439,89 @@ async function viewPanelRequest() {
   refreshMine();
 }
 
+function adminOnly(title) {
+  document.title = `${title} - ${SITE_NAME}`;
+  if (!be.isAdmin(state.user)) {
+    $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, title),
+      h("div", { class: "notice warn" }, "Only the site admin can open this page.")));
+    return false;
+  }
+  return true;
+}
+
+async function viewEditSite(id) {
+  if (!adminOnly("Edit site")) return;
+  const page = h("section", { class: "page" }, h("h1", {}, "Edit site"));
+  $app.replaceChildren(page);
+  let site;
+  try { site = (await be.listSites()).find((s) => s.id === id); } catch (e) { page.append(h("div", { class: "notice warn" }, `Couldn't load: ${e.message}`)); return; }
+  if (!site) { page.append(h("div", { class: "notice warn" }, "That site no longer exists."), h("a", { class: "btn", href: "#/manage" }, "Back to Manage")); return; }
+  const url = h("input", { id: "es-url", type: "url", required: true, value: site.url });
+  const desc = h("textarea", { id: "es-desc", rows: 3, maxlength: 300 }, site.description || "");
+  const err = h("p", { class: "err", role: "alert" });
+  const save = h("button", { class: "btn primary", type: "submit" }, "Save");
+  page.append(h("form", { class: "card", onsubmit: (e) => {
+    e.preventDefault(); err.textContent = "";
+    withBusy(save, async () => {
+      try { await be.updateSite(site.id, url.value, desc.value); } catch (ex) { err.textContent = ex.message; return; }
+      toast("Saved. Search results change after the next crawl.");
+      state.manageTab = "sites"; location.hash = "#/manage";
+    });
+  } },
+    h("div", { class: "field" }, h("label", { for: "es-url" }, "Site address"), url,
+      h("p", { class: "hint" }, "Changing the address means the crawler indexes the new address next time. Pages from the old one leave search after that crawl.")),
+    h("div", { class: "field" }, h("label", { for: "es-desc" }, "Description"), desc),
+    h("div", { class: "acts" }, save, h("a", { class: "btn", href: "#/manage" }, "Cancel")), err));
+}
+
+async function viewEditPanel(id) {
+  if (!adminOnly(id ? "Edit panel" : "Add panel")) return;
+  const page = h("section", { class: "page" }, h("h1", {}, id ? "Edit knowledge panel" : "Add knowledge panel"));
+  $app.replaceChildren(page);
+  let init = {};
+  if (id) {
+    try {
+      const [live, builtIn] = await Promise.all([be.listPanels(), fetch("data/panels.json").then((r) => (r.ok ? r.json() : [])).catch(() => [])]);
+      init = live.find((p) => p.id === id) || builtIn.find((p) => p.id === id);
+    } catch (e) { page.append(h("div", { class: "notice warn" }, `Couldn't load: ${e.message}`)); return; }
+    if (!init) { page.append(h("div", { class: "notice warn" }, "That panel doesn't exist."), h("a", { class: "btn", href: "#/manage" }, "Back to Manage")); return; }
+  }
+  const have = Object.fromEntries(linkPairs(init.links));
+  if (init.wiki && !have.Wikipedia) have.Wikipedia = `https://en.wikipedia.org/wiki/${init.wiki}`;
+  const name = h("input", { id: "ep-n", type: "text", required: true, maxlength: 80, value: init.name || "" });
+  const type = h("select", { id: "ep-t" }, be.PANEL_TYPES.map((t) => h("option", { value: t, selected: t === init.type }, t)));
+  const site = h("input", { id: "ep-w", type: "url", value: init.website || "", placeholder: "https://example.com" });
+  const sum = h("textarea", { id: "ep-s", rows: 4, maxlength: 400, required: true }, init.summary || "");
+  const facts = h("textarea", { id: "ep-f", rows: 7 }, (init.facts || []).join("\n"));
+  const aliases = h("input", { id: "ep-a", type: "text", value: (init.aliases || []).join(", "), placeholder: "google, google llc" });
+  const links = Object.fromEntries(LINK_SITES.map((n) => [n, h("input", { id: "epl-" + n, type: "url", value: have[n] || "", placeholder: `${n} address` })]));
+  const err = h("p", { class: "err", role: "alert" });
+  const save = h("button", { class: "btn primary", type: "submit" }, "Save");
+  if (id) page.append(h("p", { class: "intro" }, "Saving replaces what people see for this panel. Built-in panels can be changed here too; deleting your version later brings the built-in one back."));
+  page.append(
+    h("form", { class: "card", onsubmit: (e) => {
+      e.preventDefault(); err.textContent = "";
+      withBusy(save, async () => {
+        try {
+          const al = aliases.value.split(",").map((x) => x.trim()).filter(Boolean);
+          await be.savePanel(state.user, id, { name: name.value, type: type.value, website: site.value, summary: sum.value, facts: facts.value,
+            links: Object.fromEntries(LINK_SITES.map((n) => [n, links[n].value])) }, al.length ? al : aliasesFor(name.value));
+        } catch (ex) { err.textContent = ex.message; return; }
+        panelsLoad = null; toast("Saved.");
+        state.manageTab = "panels"; location.hash = "#/manage";
+      });
+    } },
+      h("div", { class: "field" }, h("label", { for: "ep-n" }, "Name"), name),
+      h("div", { class: "field" }, h("label", { for: "ep-t" }, "Type"), type),
+      h("div", { class: "field" }, h("label", { for: "ep-a" }, "Found when someone searches (comma separated)"), aliases,
+        h("p", { class: "hint" }, "Leave empty to use the name. A search must match one of these exactly, like \"google\" or \"north korea\".")),
+      h("div", { class: "field" }, h("label", { for: "ep-w" }, "Website"), site),
+      h("div", { class: "field" }, h("label", { for: "ep-s" }, "Short description"), sum),
+      h("div", { class: "field" }, h("label", { for: "ep-f" }, "Facts (one per line, like \"Founded: 2015\", up to 8)"), facts),
+      h("div", { class: "field" }, h("label", {}, "Links"), h("div", { class: "link-grid" }, LINK_SITES.map((n) => h("div", {}, h("label", { class: "sub", for: "epl-" + n }, n), links[n])))),
+      h("div", { class: "acts" }, save, h("a", { class: "btn", href: "#/manage" }, "Cancel")), err));
+}
+
 async function viewAppSignin() {
   document.title = `Sign in - ${SITE_NAME}`;
   const msg = h("p", { class: "intro" }, "Sign in with Google here, then you'll be sent back to the SPS Search app.");
@@ -474,9 +559,10 @@ async function viewManage() {
     h("a", { class: "btn", href: runUrl, target: "_blank", rel: "noopener noreferrer" }, "Run crawl now (opens GitHub)"),
     tabs, body));
 
-  let pending = [], sites = [], panelReqs = [], livePanels = [];
+  let pending = [], sites = [], panelReqs = [], livePanels = [], builtInPanels = [];
   async function reload() {
     [pending, sites, panelReqs, livePanels] = await Promise.all([be.listPending(), be.listSites(), be.listPendingPanelRequests(), be.listPanels()]);
+    builtInPanels = await fetch("data/panels.json").then((r) => (r.ok ? r.json() : [])).catch(() => []);
     panelsLoad = null; // so the next search sees the change
     draw();
   }
@@ -521,15 +607,27 @@ async function viewManage() {
     }));
   }
   function drawPanels() {
-    if (!livePanels.length) return h("p", { class: "sub" }, "No approved panels yet. Built-in panels come from data/panels.json.");
-    return h("div", {}, livePanels.map((p) => {
-      const del = h("button", { class: "btn small danger" }, "Delete");
-      del.onclick = () => { if (!confirm(`Delete the panel for ${p.name}?`)) return; withBusy(del, async () => { await be.deletePanel(p); toast("Deleted."); await reload(); }); };
+    const ids = new Set(livePanels.map((p) => p.id));
+    const rowFor = (p, builtIn) => {
+      const edit = h("a", { class: "btn small", href: `#/edit-panel?id=${encodeURIComponent(p.id)}` }, "Edit");
+      const acts = h("div", { class: "acts" }, edit);
+      if (!builtIn) {
+        const isOverride = builtInPanels.some((b) => b.id === p.id);
+        const del = h("button", { class: "btn small danger" }, isOverride ? "Revert" : "Delete");
+        del.onclick = () => { if (!confirm(isOverride ? `Go back to the built-in panel for ${p.name}?` : `Delete the panel for ${p.name}?`)) return; withBusy(del, async () => { await be.deletePanel(p); panelsLoad = null; toast(isOverride ? "Reverted." : "Deleted."); await reload(); }); };
+        acts.append(del);
+      }
       return h("div", { class: "row" },
         h("div", { class: "info" }, h("strong", {}, `${p.name} (${p.type})`), h("p", { class: "sub" }, p.summary),
-          h("p", { class: "sub" }, `Added by ${p.requestedBy || "admin"}`)),
-        h("div", { class: "acts" }, del));
-    }));
+          h("p", { class: "sub" }, builtIn ? "Built-in" : builtInPanels.some((b) => b.id === p.id) ? "Your changed version of a built-in panel" : `Added by ${p.requestedBy || "admin"}`)),
+        acts);
+    };
+    return h("div", {},
+      h("a", { class: "btn primary", href: "#/edit-panel" }, "Add a panel"),
+      h("h3", {}, `Approved and changed panels (${livePanels.length})`),
+      livePanels.length ? livePanels.map((p) => rowFor(p, false)) : h("p", { class: "sub" }, "None yet."),
+      h("h3", {}, `Built-in panels (${builtInPanels.filter((p) => !ids.has(p.id)).length})`),
+      builtInPanels.filter((p) => !ids.has(p.id)).map((p) => rowFor(p, true)));
   }
   function drawSites() {
     const url = h("input", { type: "url", required: true, placeholder: "https://add-a-site-yourself.com", "aria-label": "Site address" });
@@ -546,12 +644,13 @@ async function viewManage() {
         withBusy(del, async () => { await be.deleteSite(s); toast("Deleted."); await reload(); });
       };
       const n = counts[scopeKey(s.url)];
+      const edit = h("a", { class: "btn small", href: `#/edit-site?id=${encodeURIComponent(s.id)}` }, "Edit");
       return h("div", { class: "row" },
         h("div", { class: "info" },
           h("a", { href: safeHref(s.url), target: "_blank", rel: "noopener noreferrer" }, s.url),
           h("p", { class: "sub" }, n ? `${n} pages indexed` : "Not indexed yet",
             s.requestedBy ? `. Added by ${s.requestedBy}` : "")),
-        h("div", { class: "acts" }, del));
+        h("div", { class: "acts" }, edit, del));
     }) : [h("p", { class: "sub" }, "No sites yet.")];
     return h("div", {}, h("div", { class: "card" }, form), rows);
   }
@@ -567,6 +666,8 @@ function route() {
   document.title = SITE_NAME;
   if (path === "/search" && params.get("q")?.trim()) return viewSearch(params.get("q").trim());
   if (path === "/add") return viewAdd();
+  if (path === "/edit-site") return viewEditSite(params.get("id"));
+  if (path === "/edit-panel") return viewEditPanel(params.get("id") || null);
   if (path === "/panel-request") return viewPanelRequest();
   if (path === "/settings") return viewSettings();
   if (path === "/manage") return viewManage();

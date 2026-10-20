@@ -207,3 +207,5 @@ label { display: block; font-weight: 600; margin: 0 0 .25rem; }
 .link-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .6rem; }
 .link-grid label { display: block; margin-bottom: .15rem; }
 .link-grid input { width: 100%; padding: .55rem .7rem; background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; }
+.page h3 { margin: 1.4rem 0 .3rem; font-size: 1rem; }
+.acts a.btn { text-decoration: none; }
