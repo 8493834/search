@@ -10,6 +10,7 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.content.res.Configuration;
 import android.os.Build;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -132,6 +133,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle b) {
+        // The app's launch theme draws the splash picture and a title bar behind everything. Use a plain theme instead.
+        setTheme(android.R.style.Theme_DeviceDefault_NoActionBar);
         super.onCreate(b);
         dp = getResources().getDisplayMetrics().density;
         boolean dark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
@@ -139,6 +142,7 @@ public class MainActivity extends Activity {
         BAR = dark ? Color.parseColor("#0a1014") : Color.parseColor("#dfe5e8");
         TAB_ON = dark ? Color.parseColor("#1d2a32") : Color.WHITE;
         TAB_OFF = dark ? Color.parseColor("#131d23") : Color.parseColor("#eef2f4");
+        getWindow().setBackgroundDrawable(new ColorDrawable(BAR));
         buildUi();
         Uri data = getIntent() == null ? null : getIntent().getData();
         String start = data != null && data.getScheme() != null && data.getScheme().startsWith("http") ? data.toString() : SITE_URL;

@@ -201,3 +201,9 @@ label { display: block; font-weight: 600; margin: 0 0 .25rem; }
   .overview { overflow: hidden; }
 }
 .field select { width: 100%; padding: .6rem .7rem; background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; }
+.kp-links { margin: 0 0 .7rem; display: flex; flex-wrap: wrap; gap: .4rem; }
+.kp-chip { display: inline-block; padding: .2rem .7rem; border: 1.5px solid var(--line); border-radius: 999px; font-size: .85rem; text-decoration: none; color: var(--ink); background: var(--bg); }
+.kp-chip:hover { border-color: var(--accent); color: var(--accent); }
+.link-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .6rem; }
+.link-grid label { display: block; margin-bottom: .15rem; }
+.link-grid input { width: 100%; padding: .55rem .7rem; background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; }

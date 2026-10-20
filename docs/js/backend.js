@@ -153,8 +153,14 @@ export async function submitPanelRequest(user, f) {
   if (summary.length < 20) throw new Error("Write a short description (at least a sentence).");
   const website = f.website && f.website.trim() ? cleanUrl(f.website) : "";
   if (!PANEL_TYPES.includes(f.type)) throw new Error("Choose a type.");
+  const links = [];
+  for (const [label, raw] of Object.entries(f.links || {})) {
+    if (!raw || !String(raw).trim()) continue;
+    if (!["Wikipedia", "X", "Instagram", "Facebook", "YouTube", "LinkedIn", "TikTok", "GitHub"].includes(label)) continue;
+    links.push(`${label}: ${cleanUrl(raw)}`);
+  }
   await store.addDoc(store.collection(db, "panelRequests"), {
-    name, type: f.type, website, summary, facts: lines(f.facts),
+    name, type: f.type, website, summary, facts: lines(f.facts), links,
     uid: user.uid, email: user.email, status: "pending", createdAt: store.serverTimestamp(),
   });
 }
@@ -182,7 +188,7 @@ export async function acceptPanelRequest(req, aliases) {
   const batch = store.writeBatch(db);
   batch.set(store.doc(db, "panels", req.id), {
     name: req.name, type: req.type, website: req.website || "", summary: req.summary,
-    facts: req.facts || [], aliases, requestedBy: req.email || "", addedAt: store.serverTimestamp(),
+    facts: req.facts || [], links: req.links || [], aliases, requestedBy: req.email || "", addedAt: store.serverTimestamp(),
   });
   batch.update(store.doc(db, "panelRequests", req.id), { status: "approved" });
   await batch.commit();

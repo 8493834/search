@@ -17,7 +17,12 @@
    "Industry: Internet, software, advertising, cloud computing"
   ],
   "wiki": "Google",
-  "website": "https://www.google.com/"
+  "website": "https://www.google.com/",
+  "links": [
+   "X: https://x.com/Google",
+   "Instagram: https://www.instagram.com/google/",
+   "GitHub: https://github.com/google"
+  ]
  },
  {
   "id": "alphabet",
@@ -34,7 +39,8 @@
    "Main subsidiary: Google LLC"
   ],
   "wiki": "Alphabet_Inc.",
-  "website": "https://abc.xyz/"
+  "website": "https://abc.xyz/",
+  "links": []
  },
  {
   "id": "microsoft",
@@ -53,7 +59,12 @@
    "Industry: Software, cloud computing, hardware, video games"
   ],
   "wiki": "Microsoft",
-  "website": "https://www.microsoft.com/"
+  "website": "https://www.microsoft.com/",
+  "links": [
+   "X: https://x.com/Microsoft",
+   "GitHub: https://github.com/microsoft",
+   "LinkedIn: https://www.linkedin.com/company/microsoft/"
+  ]
  },
  {
   "id": "apple",
@@ -72,7 +83,8 @@
    "Industry: Consumer electronics, software, services"
   ],
   "wiki": "Apple_Inc.",
-  "website": "https://www.apple.com/"
+  "website": "https://www.apple.com/",
+  "links": []
  },
  {
   "id": "amazon",
@@ -91,7 +103,8 @@
    "Industry: E-commerce, cloud computing, streaming"
   ],
   "wiki": "Amazon_(company)",
-  "website": "https://www.amazon.com/"
+  "website": "https://www.amazon.com/",
+  "links": []
  },
  {
   "id": "meta",
@@ -111,7 +124,8 @@
    "Industry: Social media, technology"
   ],
   "wiki": "Meta_Platforms",
-  "website": "https://about.meta.com/"
+  "website": "https://about.meta.com/",
+  "links": []
  },
  {
   "id": "tesla",
@@ -130,7 +144,10 @@
    "Industry: Electric vehicles, energy storage"
   ],
   "wiki": "Tesla,_Inc.",
-  "website": "https://www.tesla.com/"
+  "website": "https://www.tesla.com/",
+  "links": [
+   "X: https://x.com/Tesla"
+  ]
  },
  {
   "id": "netflix",
@@ -148,7 +165,11 @@
    "Industry: Streaming, film and television production"
   ],
   "wiki": "Netflix",
-  "website": "https://www.netflix.com/"
+  "website": "https://www.netflix.com/",
+  "links": [
+   "X: https://x.com/netflix",
+   "Instagram: https://www.instagram.com/netflix/"
+  ]
  },
  {
   "id": "youtube",
@@ -166,7 +187,11 @@
    "Owner: Google LLC (since 2006)"
   ],
   "wiki": "YouTube",
-  "website": "https://www.youtube.com/"
+  "website": "https://www.youtube.com/",
+  "links": [
+   "X: https://x.com/YouTube",
+   "Instagram: https://www.instagram.com/youtube/"
+  ]
  },
  {
   "id": "openai",
@@ -183,7 +208,11 @@
    "Known for: ChatGPT, GPT models, DALL-E"
   ],
   "wiki": "OpenAI",
-  "website": "https://openai.com/"
+  "website": "https://openai.com/",
+  "links": [
+   "X: https://x.com/OpenAI",
+   "GitHub: https://github.com/openai"
+  ]
  },
  {
   "id": "anthropic",
@@ -201,7 +230,11 @@
    "Known for: Claude"
   ],
   "wiki": "Anthropic",
-  "website": "https://www.anthropic.com/"
+  "website": "https://www.anthropic.com/",
+  "links": [
+   "X: https://x.com/AnthropicAI",
+   "LinkedIn: https://www.linkedin.com/company/anthropicresearch/"
+  ]
  },
  {
   "id": "nvidia",
@@ -219,7 +252,11 @@
    "Industry: Semiconductors, computing"
   ],
   "wiki": "Nvidia",
-  "website": "https://www.nvidia.com/"
+  "website": "https://www.nvidia.com/",
+  "links": [
+   "X: https://x.com/nvidia",
+   "LinkedIn: https://www.linkedin.com/company/nvidia/"
+  ]
  },
  {
   "id": "samsung",
@@ -236,7 +273,8 @@
    "Industry: Consumer electronics, semiconductors"
   ],
   "wiki": "Samsung_Electronics",
-  "website": "https://www.samsung.com/"
+  "website": "https://www.samsung.com/",
+  "links": []
  },
  {
   "id": "sony",
@@ -255,7 +293,8 @@
    "Industry: Electronics, entertainment, video games"
   ],
   "wiki": "Sony",
-  "website": "https://www.sony.com/"
+  "website": "https://www.sony.com/",
+  "links": []
  },
  {
   "id": "nintendo",
@@ -273,7 +312,8 @@
    "Industry: Video games"
   ],
   "wiki": "Nintendo",
-  "website": "https://www.nintendo.com/"
+  "website": "https://www.nintendo.com/",
+  "links": []
  },
  {
   "id": "toyota",
@@ -292,7 +332,8 @@
    "Industry: Automotive"
   ],
   "wiki": "Toyota",
-  "website": "https://global.toyota/"
+  "website": "https://global.toyota/",
+  "links": []
  },
  {
   "id": "walmart",
@@ -311,7 +352,8 @@
    "Industry: Retail"
   ],
   "wiki": "Walmart",
-  "website": "https://www.walmart.com/"
+  "website": "https://www.walmart.com/",
+  "links": []
  },
  {
   "id": "cocacola",
@@ -331,7 +373,8 @@
    "Industry: Beverages"
   ],
   "wiki": "The_Coca-Cola_Company",
-  "website": "https://www.coca-colacompany.com/"
+  "website": "https://www.coca-colacompany.com/",
+  "links": []
  },
  {
   "id": "mcdonalds",
@@ -349,7 +392,8 @@
    "Industry: Fast food"
   ],
   "wiki": "McDonald's",
-  "website": "https://www.mcdonalds.com/"
+  "website": "https://www.mcdonalds.com/",
+  "links": []
  },
  {
   "id": "nike",
@@ -367,7 +411,11 @@
    "Industry: Sportswear"
   ],
   "wiki": "Nike,_Inc.",
-  "website": "https://www.nike.com/"
+  "website": "https://www.nike.com/",
+  "links": [
+   "X: https://x.com/Nike",
+   "Instagram: https://www.instagram.com/nike/"
+  ]
  },
  {
   "id": "disney",
@@ -387,7 +435,8 @@
    "Industry: Entertainment, media, theme parks"
   ],
   "wiki": "The_Walt_Disney_Company",
-  "website": "https://www.disney.com/"
+  "website": "https://www.disney.com/",
+  "links": []
  },
  {
   "id": "spotify",
@@ -405,7 +454,11 @@
    "Industry: Music and audio streaming"
   ],
   "wiki": "Spotify",
-  "website": "https://www.spotify.com/"
+  "website": "https://www.spotify.com/",
+  "links": [
+   "X: https://x.com/Spotify",
+   "Instagram: https://www.instagram.com/spotify/"
+  ]
  },
  {
   "id": "north-korea",
@@ -428,7 +481,8 @@
    "Borders: China, Russia, South Korea"
   ],
   "wiki": "North_Korea",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "south-korea",
@@ -448,7 +502,8 @@
    "Population: about 51 million (approx.)"
   ],
   "wiki": "South_Korea",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "united-states",
@@ -471,7 +526,8 @@
    "Population: about 335 million (approx.)"
   ],
   "wiki": "United_States",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "united-kingdom",
@@ -494,7 +550,8 @@
    "Population: about 68 million (approx.)"
   ],
   "wiki": "United_Kingdom",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "china",
@@ -516,7 +573,8 @@
    "Population: about 1.4 billion (approx.)"
   ],
   "wiki": "China",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "india",
@@ -536,7 +594,8 @@
    "Population: about 1.4 billion (approx.)"
   ],
   "wiki": "India",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "japan",
@@ -555,7 +614,8 @@
    "Population: about 124 million (approx.)"
   ],
   "wiki": "Japan",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "russia",
@@ -575,7 +635,8 @@
    "Population: about 144 million (approx.)"
   ],
   "wiki": "Russia",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "germany",
@@ -595,7 +656,8 @@
    "Population: about 84 million (approx.)"
   ],
   "wiki": "Germany",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "france",
@@ -614,7 +676,8 @@
    "Population: about 68 million (approx.)"
   ],
   "wiki": "France",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "canada",
@@ -633,7 +696,8 @@
    "Population: about 40 million (approx.)"
   ],
   "wiki": "Canada",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "australia",
@@ -653,7 +717,8 @@
    "Population: about 27 million (approx.)"
   ],
   "wiki": "Australia",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "new-zealand",
@@ -673,7 +738,8 @@
    "Population: about 5.2 million (approx.)"
   ],
   "wiki": "New_Zealand",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "brazil",
@@ -693,7 +759,8 @@
    "Population: about 213 million (approx.)"
   ],
   "wiki": "Brazil",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "mexico",
@@ -712,7 +779,8 @@
    "Population: about 130 million (approx.)"
   ],
   "wiki": "Mexico",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "italy",
@@ -731,7 +799,8 @@
    "Population: about 59 million (approx.)"
   ],
   "wiki": "Italy",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "spain",
@@ -750,7 +819,8 @@
    "Population: about 48 million (approx.)"
   ],
   "wiki": "Spain",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "iran",
@@ -770,7 +840,8 @@
    "Population: about 89 million (approx.)"
   ],
   "wiki": "Iran",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "egypt",
@@ -789,7 +860,8 @@
    "Population: about 110 million (approx.)"
   ],
   "wiki": "Egypt",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "nigeria",
@@ -808,7 +880,8 @@
    "Population: about 220 million (approx.)"
   ],
   "wiki": "Nigeria",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "south-africa",
@@ -827,7 +900,8 @@
    "Population: about 60 million (approx.)"
   ],
   "wiki": "South_Africa",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "indonesia",
@@ -846,7 +920,8 @@
    "Population: about 280 million (approx.)"
   ],
   "wiki": "Indonesia",
-  "website": ""
+  "website": "",
+  "links": []
  },
  {
   "id": "turkey",
@@ -867,6 +942,7 @@
    "Population: about 85 million (approx.)"
   ],
   "wiki": "Turkey",
-  "website": ""
+  "website": "",
+  "links": []
  }
 ]

@@ -37,3 +37,14 @@ export function aliasesFor(name) {
   const short = base.replace(/\s+(llc|inc|ltd|limited|corp|corporation|co|company|plc|gmbh|pty)$/, "");
   return [...new Set([base, short].filter(Boolean))];
 }
+
+/** "Label: https://..." strings to [label, url] pairs (only web addresses). */
+export function linkPairs(links) {
+  return (links || []).map((l) => {
+    const i = String(l).indexOf(":");
+    return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : null;
+  }).filter((x) => x && /^https?:\/\//i.test(x[1]));
+}
+
+/** The social and reference sites people can add to a panel. */
+export const LINK_SITES = ["Wikipedia", "X", "Instagram", "Facebook", "YouTube", "LinkedIn", "TikTok", "GitHub"];

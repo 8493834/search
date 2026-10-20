@@ -2,7 +2,7 @@ import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL } fr
 import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
 import * as be from "./backend.js";
-import { findPanel, factPairs, aliasesFor } from "./panels.js";
+import { findPanel, factPairs, aliasesFor, linkPairs, LINK_SITES } from "./panels.js";
 
 const $top = document.getElementById("top");
 const $app = document.getElementById("app");
@@ -134,15 +134,18 @@ function loadPanels() {
 }
 function panelCard(p) {
   const rows = factPairs(p.facts);
-  const links = [];
-  if (p.website) links.push(h("a", { href: safeHref(p.website), rel: "noopener noreferrer" }, "Official site"));
-  if (p.wiki) links.push(h("a", { href: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.wiki).replace(/%28/g, "(").replace(/%29/g, ")")}`, rel: "noopener noreferrer" }, "Wikipedia"));
+  const wikiUrl = p.wiki ? `https://en.wikipedia.org/wiki/${encodeURIComponent(p.wiki).replace(/%28/g, "(").replace(/%29/g, ")")}` : "";
+  const pairs = [];
+  if (p.website) pairs.push(["Official site", p.website]);
+  if (wikiUrl) pairs.push(["Wikipedia", wikiUrl]);
+  for (const [l, u] of linkPairs(p.links)) if (!(l === "Wikipedia" && wikiUrl)) pairs.push([l, u]);
+  const links = pairs.map(([l, u]) => h("a", { class: "kp-chip", href: safeHref(u), rel: "noopener noreferrer" }, l));
   return h("aside", { class: "kp", "aria-label": `About ${p.name}` },
     h("p", { class: "kp-type" }, p.type),
     h("h2", {}, p.name),
     h("p", { class: "kp-sum" }, p.summary),
     rows.length ? h("dl", {}, rows.flatMap(([k, v]) => [k ? h("dt", {}, k) : null, h("dd", {}, v)])) : null,
-    links.length ? h("p", { class: "kp-links" }, links.flatMap((a, i) => (i ? [" \u00b7 ", a] : [a]))) : null,
+    links.length ? h("div", { class: "kp-links" }, links) : null,
     h("p", { class: "kp-fine" }, p.requestedBy ? "Added by request and reviewed by the site admin. " : "Compiled by SPS Search from public information. ",
       "It may be out of date. ", h("a", { href: "#/panel-request" }, "Request or improve a panel")));
 }
@@ -399,6 +402,7 @@ async function viewPanelRequest() {
   const site = h("input", { id: "pw", type: "url", placeholder: "https://example.com (optional)" });
   const sum = h("textarea", { id: "ps", rows: 3, maxlength: 400, required: true, placeholder: "One or two sentences about what it is." });
   const facts = h("textarea", { id: "pf", rows: 5, placeholder: "Founded: 2015\nHeadquarters: Melbourne, Australia\nFounder: Jane Smith" });
+  const linkInputs = Object.fromEntries(LINK_SITES.map((n) => [n, h("input", { id: "pl-" + n, type: "url", placeholder: `${n} address (optional)` })]));
   const err = h("p", { class: "err", role: "alert" });
   const submit = h("button", { class: "btn primary", type: "submit" }, "Send request");
   const mine = h("div", { class: "card" });
@@ -406,9 +410,9 @@ async function viewPanelRequest() {
     h("form", { class: "card", onsubmit: (e) => {
       e.preventDefault(); err.textContent = "";
       withBusy(submit, async () => {
-        try { await be.submitPanelRequest(state.user, { name: name.value, type: type.value, website: site.value, summary: sum.value, facts: facts.value }); }
+        try { await be.submitPanelRequest(state.user, { name: name.value, type: type.value, website: site.value, summary: sum.value, facts: facts.value, links: Object.fromEntries(LINK_SITES.map((n) => [n, linkInputs[n].value])) }); }
         catch (ex) { err.textContent = ex.code === "permission-denied" ? "Your request was rejected. Check the fields and try again." : ex.message; return; }
-        name.value = ""; site.value = ""; sum.value = ""; facts.value = "";
+        name.value = ""; site.value = ""; sum.value = ""; facts.value = ""; LINK_SITES.forEach((n) => { linkInputs[n].value = ""; });
         toast("Request sent. It's waiting for review."); refreshMine();
       });
     } },
@@ -417,6 +421,7 @@ async function viewPanelRequest() {
       h("div", { class: "field" }, h("label", { for: "pw" }, "Website"), site),
       h("div", { class: "field" }, h("label", { for: "ps" }, "Short description"), sum),
       h("div", { class: "field" }, h("label", { for: "pf" }, "Facts (one per line, like \"Founded: 2015\", up to 8)"), facts),
+      h("div", { class: "field" }, h("label", {}, "Links (optional)"), h("div", { class: "link-grid" }, LINK_SITES.map((n) => h("div", {}, h("label", { class: "sub", for: "pl-" + n }, n), linkInputs[n])))),
       submit, err),
     h("h2", {}, "Your panel requests"), mine);
 
@@ -510,6 +515,7 @@ async function viewManage() {
           h("p", { class: "sub" }, r.summary),
           r.facts?.length ? h("p", { class: "sub" }, r.facts.join(" | ")) : null,
           r.website ? h("a", { href: safeHref(r.website), target: "_blank", rel: "noopener noreferrer" }, r.website) : null,
+          ...linkPairs(r.links).map(([l, u]) => h("p", { class: "sub" }, `${l}: `, h("a", { href: safeHref(u), target: "_blank", rel: "noopener noreferrer" }, u))),
           h("p", { class: "sub" }, `From ${r.email}, ${fmtDate(r.ts)}`)),
         h("div", { class: "acts" }, acc, den));
     }));
