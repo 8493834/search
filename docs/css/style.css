@@ -185,3 +185,19 @@ label { display: block; font-weight: 600; margin: 0 0 .25rem; }
 .overview .ov-badge { color: var(--muted); font-size: .8rem; }
 .setting + .setting { margin-top: 12px; }
 .overview .ov-quotes summary { cursor: pointer; font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
+
+/* knowledge panels */
+.kp { background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; margin: 0 0 1.2rem; }
+.kp-type { margin: 0 0 .15rem; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.kp h2 { margin: 0 0 .5rem; font: 700 1.4rem/1.2 var(--display); }
+.kp-sum { margin: 0 0 .8rem; line-height: 1.5; }
+.kp dl { margin: 0 0 .8rem; display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; font-size: .92rem; }
+.kp dt { font-weight: 600; }
+.kp dd { margin: 0; overflow-wrap: anywhere; }
+.kp-links { margin: 0 0 .6rem; font-size: .92rem; }
+.kp-fine { margin: 0; font-size: .78rem; color: var(--muted); }
+@media (min-width: 62rem) {
+  .kp { float: right; width: 21rem; margin: 0 0 1rem 1.5rem; }
+  .overview { overflow: hidden; }
+}
+.field select { width: 100%; padding: .6rem .7rem; background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; }

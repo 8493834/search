@@ -140,3 +140,60 @@ export async function signInWithHandoff({ idToken, accessToken }) {
   const { auth, authInst } = await load();
   await auth.signInWithCredential(authInst, auth.GoogleAuthProvider.credential(idToken || null, accessToken || null));
 }
+
+// ---- Knowledge panels ----
+export const PANEL_TYPES = ["Company", "Organisation", "Country", "Place", "Person", "Product", "Other"];
+const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 8).map((x) => x.slice(0, 120));
+
+export async function submitPanelRequest(user, f) {
+  const { store, db } = await load();
+  const name = String(f.name || "").trim().slice(0, 80);
+  if (!name) throw new Error("Enter the name.");
+  const summary = String(f.summary || "").trim().slice(0, 400);
+  if (summary.length < 20) throw new Error("Write a short description (at least a sentence).");
+  const website = f.website && f.website.trim() ? cleanUrl(f.website) : "";
+  if (!PANEL_TYPES.includes(f.type)) throw new Error("Choose a type.");
+  await store.addDoc(store.collection(db, "panelRequests"), {
+    name, type: f.type, website, summary, facts: lines(f.facts),
+    uid: user.uid, email: user.email, status: "pending", createdAt: store.serverTimestamp(),
+  });
+}
+
+export async function listMyPanelRequests(user) {
+  const { store, db } = await load();
+  const q = store.query(store.collection(db, "panelRequests"), store.where("uid", "==", user.uid));
+  return (await store.getDocs(q)).docs.map(toRow).sort(newestFirst);
+}
+
+export async function listPendingPanelRequests() {
+  const { store, db } = await load();
+  const q = store.query(store.collection(db, "panelRequests"), store.where("status", "==", "pending"));
+  return (await store.getDocs(q)).docs.map(toRow).sort(newestFirst);
+}
+
+export async function listPanels() {
+  const { store, db } = await load();
+  const snap = await store.getDocs(store.collection(db, "panels"));
+  return snap.docs.map(toRow).sort(newestFirst);
+}
+
+export async function acceptPanelRequest(req, aliases) {
+  const { store, db } = await load();
+  const batch = store.writeBatch(db);
+  batch.set(store.doc(db, "panels", req.id), {
+    name: req.name, type: req.type, website: req.website || "", summary: req.summary,
+    facts: req.facts || [], aliases, requestedBy: req.email || "", addedAt: store.serverTimestamp(),
+  });
+  batch.update(store.doc(db, "panelRequests", req.id), { status: "approved" });
+  await batch.commit();
+}
+
+export async function denyPanelRequest(req) {
+  const { store, db } = await load();
+  await store.updateDoc(store.doc(db, "panelRequests", req.id), { status: "denied" });
+}
+
+export async function deletePanel(panel) {
+  const { store, db } = await load();
+  await store.deleteDoc(store.doc(db, "panels", panel.id));
+}

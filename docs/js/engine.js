@@ -1,3 +1,6 @@
+// The search engine that runs in the visitor's browser.
+// tokenize / stem / shardOf are ports of crawler/textproc.py - keep them identical.
+
 const TOKEN_RE = /[\p{L}\p{N}]+/gu;
 const VOWEL_RE = /[aeiouy]/;
 
@@ -32,6 +35,7 @@ export function shardOf(term, nShards) {
 }
 
 export class SearchEngine {
+  /** @param {(path:string)=>Promise<any>} getJson loads a file from the data folder */
   constructor(getJson) {
     this.getJson = getJson;
     this.meta = null;
@@ -48,7 +52,7 @@ export class SearchEngine {
   queryTerms(query) {
     const words = tokenize(query);
     let terms = words.filter((w) => !this.stop.has(w)).map(stem);
-    if (!terms.length) terms = words.map(stem);
+    if (!terms.length) terms = words.map(stem); // query was only stop words
     return [...new Set(terms)];
   }
 
@@ -72,7 +76,7 @@ export class SearchEngine {
     const shards = new Map();
     await Promise.all(shardIds.map(async (i) => shards.set(i, await this.loadShard(i))));
 
-    const scores = new Map(); 
+    const scores = new Map(); // docId -> { score, hits }
     for (const term of terms) {
       const post = shards.get(shardOf(term, m.shards))[term];
       if (!post) continue;
@@ -94,11 +98,13 @@ export class SearchEngine {
     const ranked = [];
     for (const [id, { score, hits }] of scores) {
       const coverage = hits / terms.length;
-
+      // pages containing every word rank far above partial matches
       ranked.push([id, score * coverage * coverage * (1 + 0.3 * Math.sqrt(m.pr[id]))]);
     }
     ranked.sort((a, b) => b[1] - a[1]);
 
+    // Group by site: the site's home page first, then its other matching pages, then the next site.
+    // Sites are ordered by their best-scoring page (a site named in the search goes first). Only the top matches are regrouped.
     const TOP = 200;
     const head = ranked.slice(0, TOP);
     const urls = await Promise.all(head.map(async ([id]) => {
@@ -106,14 +112,14 @@ export class SearchEngine {
       return chunk[id % m.chunk][0];
     }));
     const qWords = new Set(tokenize(query));
-    const groups = new Map(); 
+    const groups = new Map(); // site (e.g. google.com) -> { label, root, rest }
     head.forEach((row, i) => {
       let site = "", label = "", isMain = false, isRoot = false;
       try {
         const u = new URL(urls[i]);
         const host = u.hostname.replace(/^www\./, "").toLowerCase();
         const parts = host.split(".");
-      
+        // google.com, classroom.google.com and drive.google.com are one site. Handles names like bbc.co.uk too.
         const keep = parts.length > 2 && parts[parts.length - 1].length === 2 && /^(co|com|org|net|gov|ac|edu)$/.test(parts[parts.length - 2]) ? 3 : 2;
         site = parts.slice(-keep).join(".");
         label = parts[Math.max(0, parts.length - keep)];
@@ -124,7 +130,7 @@ export class SearchEngine {
       const g = groups.get(site);
       if (isRoot && isMain && !g.root) g.root = row; else g.rest.push(row);
     });
-    
+    // A site whose name is in the search (google.com for "google") goes first, then the others by best match.
     const ordered = [...groups.values()].sort((x, y) => (qWords.has(y.label) ? 1 : 0) - (qWords.has(x.label) ? 1 : 0));
     const regrouped = [];
     for (const g of ordered) {
@@ -152,6 +158,7 @@ export class SearchEngine {
   }
 }
 
+/** Returns [{text, hit}] segments for the best ~200 char window of `text`. */
 export function makeSnippet(text, stems, size = 200) {
   if (!text) return [];
   const hits = [];
@@ -212,7 +219,7 @@ const jaccard = (a, b) => {
   return u ? i / u : 0;
 };
 
-
+/** Builds an extractive overview from search results. Returns null if nothing good enough. */
 export function buildOverview(res, { maxSentences = 4, maxDocs = 5 } = {}) {
   if (!res || !res.results || !res.results.length) return null;
   const terms = res.terms || [];
