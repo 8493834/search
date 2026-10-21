@@ -1,4 +1,4 @@
-import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL } from "./config.js";
+import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL, OVERVIEW_API_URLS } from "./config.js";
 import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
 import * as be from "./backend.js";
@@ -58,9 +58,19 @@ async function withBusy(btn, fn) {
 
 /* ---------- search engine ---------- */
 const engine = new SearchEngine(async (path) => {
-  const r = await fetch(`data/${path}${path === "meta.json" ? "" : dataVersion}`);
-  if (!r.ok) throw new Error(`Could not load ${path} (${r.status})`);
-  return r.json();
+  // A stalled or failed download must not stick: time out, retry once, and report the problem.
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 10000);
+    try {
+      const r = await fetch(`data/${path}${path === "meta.json" ? "" : dataVersion}`, { signal: ctl.signal, cache: attempt ? "reload" : "default" });
+      if (!r.ok) throw new Error(`Could not load ${path} (${r.status})`);
+      return await r.json();
+    } catch (e) { lastErr = e.name === "AbortError" ? new Error(`Loading ${path} took too long`) : e; }
+    finally { clearTimeout(timer); }
+  }
+  throw lastErr;
 });
 const engineReady = engine.init().then(
   (meta) => { state.meta = meta; dataVersion = `?v=${encodeURIComponent(meta.built || "0")}`; },
@@ -200,15 +210,21 @@ async function viewSearch(q) {
         const own = ov.sentences.filter((x) => x.url === r.url).map((x) => x.text).join(" ");
         return `${r.title || r.url}. ${own || r.description || (r.text || "").slice(0, 500)}`.slice(0, 800);
       });
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 15000);
-      const r = await fetch(OVERVIEW_API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ q, passages }) });
-      clearTimeout(timer);
-      if (!r.ok) {
-        let d = "";
-        try { const j = await r.json(); d = j.detail || j.error || ""; } catch {}
-        throw new Error(`AI helper error ${r.status}${d ? ": " + d : ""}`);
+      // Try each helper in turn; move on if one is blocked, down or times out.
+      let r = null, lastErr = null;
+      for (const url of OVERVIEW_API_URLS) {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 12000);
+        try {
+          const resp = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ q, passages }) });
+          if (resp.ok) { r = resp; break; }
+          let d = "";
+          try { const j = await resp.json(); d = j.detail || j.error || ""; } catch {}
+          lastErr = new Error(`AI helper error ${resp.status}${d ? ": " + d : ""}`);
+        } catch (e) { lastErr = e; }
+        finally { clearTimeout(timer); }
       }
+      if (!r) throw lastErr || new Error("no AI helper reachable");
       const text = String((await r.json()).text || "").trim();
       // Keep the answer only if it sticks to the sources.
       const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
@@ -244,7 +260,15 @@ async function viewSearch(q) {
       h("p", { class: "ov-fine" }, "Quoted automatically from the top results unless the AI option is on. It can miss context. Turn it off in Settings."));
   }
   async function loadMore() {
-    const res = await engine.search(q, { limit: PAGE, offset });
+    let res;
+    try { res = await engine.search(q, { limit: PAGE, offset }); }
+    catch (e) {
+      meta.textContent = "";
+      list.replaceChildren(h("div", { class: "empty" }, h("h2", {}, "Couldn't load results"),
+        h("p", {}, (e.message || "Something went wrong.") + " Check your connection and try again."),
+        h("button", { class: "btn", onclick: () => route() }, "Try again")));
+      return;
+    }
     if (offset === 0) {
       loadPanels().then((all) => {
         const p = findPanel(q, all);
@@ -680,9 +704,9 @@ function route() {
 window.addEventListener("hashchange", route);
 
 renderHeader();
-route();
+route(); // draw the page right away; never wait for Firebase (it may be slow, blocked or offline)
 be.onUser((user) => {
   state.user = user;
   renderHeader();
-  route();
+  route(); // re-render so signed-in / admin views update
 }).catch(() => {});

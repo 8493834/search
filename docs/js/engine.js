@@ -57,12 +57,20 @@ export class SearchEngine {
   }
 
   async loadShard(i) {
-    if (!this.shardCache.has(i)) this.shardCache.set(i, this.getJson(`s${i}.json`));
+    if (!this.shardCache.has(i)) {
+      const p = this.getJson(`s${i}.json`);
+      p.catch(() => this.shardCache.delete(i)); // never keep a failed download
+      this.shardCache.set(i, p);
+    }
     return this.shardCache.get(i);
   }
 
   async loadChunk(c) {
-    if (!this.chunkCache.has(c)) this.chunkCache.set(c, this.getJson(`d${c}.json`));
+    if (!this.chunkCache.has(c)) {
+      const p = this.getJson(`d${c}.json`);
+      p.catch(() => this.chunkCache.delete(c));
+      this.chunkCache.set(c, p);
+    }
     return this.chunkCache.get(c);
   }
 
