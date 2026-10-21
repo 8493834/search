@@ -533,8 +533,12 @@ async function viewAppSignin() {
     back.replaceChildren(h("a", { class: "btn primary", href: link }, "Open the SPS Search app"));
     location.href = link;
   });
+  if (state.user) {
+    msg.textContent = "You're signed in as " + (state.user.email || "your account") + ".";
+    back.replaceChildren(h("a", { class: "btn primary", href: "#/" }, "Go to SPS Search"));
+  }
   $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Sign in"), msg,
-    FIREBASE_READY ? h("div", { class: "card" }, btn, back)
+    FIREBASE_READY ? h("div", { class: "card" }, state.user ? back : btn, state.user ? "" : back)
       : h("div", { class: "notice warn" }, "Sign-in isn't set up yet."),
     h("p", { class: "hint" }, "Don't have the app? You can just use this website directly.")));
 }
@@ -676,9 +680,9 @@ function route() {
 window.addEventListener("hashchange", route);
 
 renderHeader();
-route(); // draw the page right away; never wait for Firebase (it may be slow, blocked or offline)
+route();
 be.onUser((user) => {
   state.user = user;
   renderHeader();
-  route(); // re-render so signed-in / admin views update
+  route();
 }).catch(() => {});
