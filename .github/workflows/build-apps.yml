@@ -3,7 +3,7 @@ name: Build apps (Windows, Mac, Linux, Android)
 
 
 on:
-  workflow_dispatch:   # press "Run workflow" in the Actions tab
+  workflow_dispatch:
 
 jobs:
   desktop:

@@ -26,6 +26,13 @@ export async function onUser(cb) {
   auth.onAuthStateChanged(authInst, cb);
 }
 
+export async function whoami() {
+  if (!FIREBASE_READY) return null;
+  const { authInst } = await load();
+  await authInst.authStateReady();
+  return authInst.currentUser;
+}
+
 export async function signIn() {
   const { auth, authInst } = await load();
   await auth.signInWithPopup(authInst, new auth.GoogleAuthProvider());

@@ -209,3 +209,5 @@ label { display: block; font-weight: 600; margin: 0 0 .25rem; }
 .link-grid input { width: 100%; padding: .55rem .7rem; background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; }
 .page h3 { margin: 1.4rem 0 .3rem; font-size: 1rem; }
 .acts a.btn { text-decoration: none; }
+
+.testbk { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted, inherit); }

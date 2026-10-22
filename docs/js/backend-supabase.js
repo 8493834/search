@@ -20,6 +20,7 @@ export async function onUser(cb) {
   c.auth.onAuthStateChange((_e, session) => cb(asUser(session?.user)));
   cb(asUser((await c.auth.getSession()).data.session?.user));
 }
+export async function whoami() { const c = await load(); return asUser((await c.auth.getSession()).data.session?.user) || null; }
 export async function signIn() {
   const c = await load();
   ok(await c.auth.signInWithOAuth({ provider: "google", options: { redirectTo: SITE_URL } }));

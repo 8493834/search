@@ -1,4 +1,4 @@
-import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL, OVERVIEW_API_URLS } from "./config.js";
+import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL, OVERVIEW_API_URLS, OVERVIEW_API_FALLBACK_URLS, SUPABASE_READY } from "./config.js";
 import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
 import * as be from "./backend.js";
@@ -109,6 +109,14 @@ function renderHeader() {
       nav.append(h("button", { class: "btn small", onclick: doSignIn }, "Sign in with Google"));
     }
   }
+  // Admin-only: switch so that only the backup services are used, to check they work.
+  if (SUPABASE_READY && (be.isAdmin(state.user) || be.isTestBackup())) {
+    const on = be.isTestBackup();
+    nav.prepend(h("label", { class: "testbk", title: "When on, only the backup services (Supabase and the backup AI helper) are used" },
+      h("span", {}, "Test backup"),
+      h("button", { class: "switch", role: "switch", "aria-checked": String(on), "aria-label": "Test backup",
+        onclick: () => { if (be.setTestBackup(!on)) location.reload(); else toast("Couldn't save the switch on this device."); } }, h("span", { class: "knob" }))));
+  }
   $top.replaceChildren(h("a", { class: "brand", href: "#/" }, h("img", { src: "img/favicon.png", alt: "", width: 34, height: 34 }), SITE_NAME), nav);
 }
 async function doSignIn() {
@@ -212,7 +220,9 @@ async function viewSearch(q) {
       });
       // Try each helper in turn; move on if one is blocked, down or times out.
       let r = null, lastErr = null;
-      for (const url of OVERVIEW_API_URLS) {
+      const urls = be.isTestBackup() ? OVERVIEW_API_FALLBACK_URLS.filter(Boolean) : OVERVIEW_API_URLS;
+      if (!urls.length) throw new Error("no backup helper is set up");
+      for (const url of urls) {
         const ctl = new AbortController();
         const timer = setTimeout(() => ctl.abort(), 12000);
         try {
@@ -592,7 +602,49 @@ async function viewManage() {
     builtInPanels = await fetch("data/panels.json").then((r) => (r.ok ? r.json() : [])).catch(() => []);
     panelsLoad = null; // so the next search sees the change
     draw();
+    be.backupStatus().then((b) => { backup = b; draw(); }).catch(() => {});
   }
+  let backup = null; // how the two services compare, once checked
+  // Warning + "Back up now" for sites or panels that exist on only one of Firebase / Supabase.
+  function backupBanner(kind) { // kind: "sites" | "panels"
+    if (!backup) return null;
+    const out = [];
+    for (const target of ["firebase", "supabase"]) {
+      const src = target === "firebase" ? "supabase" : "firebase";
+      const tn = backup.names[target], sn = backup.names[src];
+      if (!backup.have[target].ok || !backup.have[src].ok) {
+        const bad = backup.have[target].ok ? src : target;
+        if (target === "firebase") out.push(h("div", { class: "notice warn" }, `Couldn't check ${backup.names[bad]} (${backup.have[bad].error}), so backups aren't compared right now.`));
+        continue;
+      }
+      const items = backup.missing[target][kind];
+      if (!items.length) continue;
+      const word = kind === "sites" ? (items.length === 1 ? "site is" : "sites are") : (items.length === 1 ? "panel is" : "panels are");
+      const btn = h("button", { class: "btn small primary" }, "Back up now");
+      btn.onclick = () => withBusy(btn, async () => {
+        try {
+          const n = await be.backupTo(target, { [kind]: items });
+          toast(`Backed up ${n} to ${tn}.`);
+          await reload();
+        } catch (e) {
+          if (e.code !== "NEEDS_SIGNIN") throw e;
+          toast(`Signing you in to ${tn}. Then press Back up now again.`);
+          await be.signInTo(target);
+        }
+      });
+      out.push(h("div", { class: "notice warn" }, h("p", { style: "margin:0 0 8px" }, `Warning: ${items.length} ${word} only on ${sn}, not backed up to ${tn}. Would you like to back up now?`), btn));
+    }
+    return out.length ? h("div", {}, out) : null;
+  }
+  const notBacked = (kind, item) => {
+    if (!backup) return null;
+    const to = [];
+    for (const target of ["firebase", "supabase"]) {
+      const list = backup.missing[target][kind];
+      if (list.some((x) => x.id === item.id)) to.push(backup.names[target]);
+    }
+    return to.length ? h("p", { class: "sub" }, `Not backed up to ${to.join(" or ")}`) : null;
+  };
   function draw() {
     tabs.replaceChildren(
       ...[["requests", `Requests (${pending.length})`], ["sites", `Current sites (${sites.length})`], ["panelreq", `Panel requests (${panelReqs.length})`], ["panels", `Panels (${livePanels.length})`]].map(([id, label]) =>
@@ -646,10 +698,12 @@ async function viewManage() {
       }
       return h("div", { class: "row" },
         h("div", { class: "info" }, h("strong", {}, `${p.name} (${p.type})`), h("p", { class: "sub" }, p.summary),
-          h("p", { class: "sub" }, builtIn ? "Built-in" : builtInPanels.some((b) => b.id === p.id) ? "Your changed version of a built-in panel" : `Added by ${p.requestedBy || "admin"}`)),
+          h("p", { class: "sub" }, builtIn ? "Built-in" : builtInPanels.some((b) => b.id === p.id) ? "Your changed version of a built-in panel" : `Added by ${p.requestedBy || "admin"}`),
+          builtIn ? null : notBacked("panels", p)),
         acts);
     };
     return h("div", {},
+      backupBanner("panels"),
       h("a", { class: "btn primary", href: "#/edit-panel" }, "Add a panel"),
       h("h3", {}, `Approved and changed panels (${livePanels.length})`),
       livePanels.length ? livePanels.map((p) => rowFor(p, false)) : h("p", { class: "sub" }, "None yet."),
@@ -676,10 +730,11 @@ async function viewManage() {
         h("div", { class: "info" },
           h("a", { href: safeHref(s.url), target: "_blank", rel: "noopener noreferrer" }, s.url),
           h("p", { class: "sub" }, n ? `${n} pages indexed` : "Not indexed yet",
-            s.requestedBy ? `. Added by ${s.requestedBy}` : "")),
+            s.requestedBy ? `. Added by ${s.requestedBy}` : ""),
+          notBacked("sites", s)),
         h("div", { class: "acts" }, edit, del));
     }) : [h("p", { class: "sub" }, "No sites yet.")];
-    return h("div", {}, h("div", { class: "card" }, form), rows);
+    return h("div", {}, backupBanner("sites"), h("div", { class: "card" }, form), rows);
   }
   try { await reload(); } catch (e) { body.replaceChildren(h("div", { class: "notice warn" }, `Couldn't load data: ${e.message}`)); }
 }

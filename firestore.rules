@@ -35,5 +35,34 @@ service cloud.firestore {
 
       allow update, delete: if isAdmin();
     }
+
+    // Knowledge panels people asked for: anyone signed in can request, only the admin approves.
+    match /panelRequests/{requestId} {
+      allow read: if isAdmin()
+        || (request.auth != null && resource.data.uid == request.auth.uid);
+
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['name', 'type', 'website', 'summary', 'facts', 'links', 'uid', 'email', 'status', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'pending'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80
+        && request.resource.data.type in ['Company', 'Organisation', 'Country', 'Place', 'Person', 'Product', 'Other']
+        && request.resource.data.website is string && request.resource.data.website.size() <= 300
+        && request.resource.data.summary is string
+        && request.resource.data.summary.size() >= 20 && request.resource.data.summary.size() <= 400
+        && request.resource.data.facts is list && request.resource.data.facts.size() <= 8
+        && request.resource.data.links is list && request.resource.data.links.size() <= 10
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if isAdmin();
+    }
+
+    // Approved knowledge panels: anyone can read, only the admin can change.
+    match /panels/{panelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }
