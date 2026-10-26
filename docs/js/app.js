@@ -219,27 +219,34 @@ async function viewSearch(q) {
         return `${r.title || r.url}. ${own || r.description || (r.text || "").slice(0, 500)}`.slice(0, 800);
       });
       // Try each helper in turn; move on if one is blocked, down or times out.
-      let r = null, lastErr = null;
+      let text = "", lastErr = null;
       const urls = be.isTestBackup() ? OVERVIEW_API_FALLBACK_URLS.filter(Boolean) : OVERVIEW_API_URLS;
       if (!urls.length) throw new Error("no backup helper is set up");
+      const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
+      // Keep an answer only if it sticks to the sources.
+      const grounded = (t) => {
+        const words = tokenize(t.replace(/\[\d+\]/g, "")).filter((w) => w.length > 3).map(stem);
+        return words.length >= 5 && words.filter((w) => src.has(w)).length / words.length >= 0.5;
+      };
+      // Try each helper in turn; move on if one is blocked, down, times out or wanders off the sources.
       for (const url of urls) {
         const ctl = new AbortController();
         const timer = setTimeout(() => ctl.abort(), 12000);
         try {
           const resp = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ q, passages }) });
-          if (resp.ok) { r = resp; break; }
-          let d = "";
-          try { const j = await resp.json(); d = j.detail || j.error || ""; } catch {}
-          lastErr = new Error(`AI helper error ${resp.status}${d ? ": " + d : ""}`);
+          if (!resp.ok) {
+            let d = "";
+            try { const j = await resp.json(); d = j.detail || j.error || ""; } catch {}
+            lastErr = new Error(`AI helper error ${resp.status}${d ? ": " + d : ""}`);
+            continue;
+          }
+          const t = String((await resp.json()).text || "").trim();
+          if (grounded(t)) { text = t; break; }
+          lastErr = new Error("the AI's answer didn't stick to the sources");
         } catch (e) { lastErr = e; }
         finally { clearTimeout(timer); }
       }
-      if (!r) throw lastErr || new Error("no AI helper reachable");
-      const text = String((await r.json()).text || "").trim();
-      // Keep the answer only if it sticks to the sources.
-      const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
-      const words = tokenize(text.replace(/\[\d+\]/g, "")).filter((w) => w.length > 3).map(stem);
-      if (words.length < 5 || words.filter((w) => src.has(w)).length / words.length < 0.6) throw new Error("ungrounded");
+      if (!text) throw lastErr || new Error("no AI helper reachable");
       el.replaceChildren(...text.split(/(\[\d+\])/).map((part) => {
         const m = part.match(/^\[(\d+)\]$/), r2 = m && res.results[Number(m[1]) - 1];
         return r2 ? h("sup", {}, h("a", { href: safeHref(r2.url), rel: "noopener noreferrer", "aria-label": `Source ${m[1]}` }, part)) : part;
@@ -783,4 +790,4 @@ be.onUser((user) => {
   state.user = user;
   renderHeader();
   route(); // re-render so signed-in / admin views update
-}).catch(() => {});
+}).catch(() => {}); {});
