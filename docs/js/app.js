@@ -210,6 +210,7 @@ async function viewSearch(q) {
   }
 
   const PAGE = 10;
+  const COMMON = new Set(("this that these those with from have has had been being were was are is not but also than then them they their there here what when where which while who whom whose why how will would could should can may might must shall into onto over under about above below after before again between through during each other another such some many much more most less least only just very both either neither same own too its itself your yours our ours his her hers him she you any all few several one two three four first second new used use uses using like make makes made provide provides provided include includes including based allow allows offers offer help helps said says say according however because since while although though per via").split(" "));
   let offset = 0;
   // Optional: ask the free online helper (see SETUP-OVERVIEW.md) to write the overview from the top results.
   async function runAI(el, res, ov, quotes) {
@@ -226,7 +227,8 @@ async function viewSearch(q) {
       // Keep an answer only if it sticks to the sources.
       let why = "";
       const grounded = (t) => {
-        const words = tokenize(t.replace(/\[\d+\]/g, "")).filter((w) => w.length > 3).map(stem);
+        // Everyday linking words (which, their, about...) aren't facts, so they don't count either way.
+        const words = tokenize(t.replace(/\[\d+\]/g, "")).filter((w) => w.length > 3 && !COMMON.has(w)).map(stem);
         if (words.length < 5) { why = `only ${words.length} usable words`; return false; }
         const pct = Math.round((100 * words.filter((w) => src.has(w)).length) / words.length);
         why = `${pct}% of its words were in the sources`;
