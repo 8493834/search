@@ -224,9 +224,13 @@ async function viewSearch(q) {
       if (!urls.length) throw new Error("no backup helper is set up");
       const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
       // Keep an answer only if it sticks to the sources.
+      let why = "";
       const grounded = (t) => {
         const words = tokenize(t.replace(/\[\d+\]/g, "")).filter((w) => w.length > 3).map(stem);
-        return words.length >= 5 && words.filter((w) => src.has(w)).length / words.length >= 0.5;
+        if (words.length < 5) { why = `only ${words.length} usable words`; return false; }
+        const pct = Math.round((100 * words.filter((w) => src.has(w)).length) / words.length);
+        why = `${pct}% of its words were in the sources`;
+        return pct >= 50;
       };
       // Try each helper in turn; move on if one is blocked, down, times out or wanders off the sources.
       for (const url of urls) {
@@ -243,7 +247,7 @@ async function viewSearch(q) {
           }
           const t = String((await resp.json()).text || "").trim();
           if (grounded(t)) { text = t; break; }
-          lastErr = new Error("the AI's answer didn't stick to the sources");
+          lastErr = new Error(`the AI's answer didn't stick to the sources (${why})`);
           errs.push(`${new URL(url).hostname}: ${lastErr.message}`);
         } catch (e) { lastErr = e; errs.push(`${new URL(url).hostname}: ${e.name === "AbortError" ? "timed out" : e.message}`); }
         finally { clearTimeout(timer); }
