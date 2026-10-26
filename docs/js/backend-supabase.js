@@ -1,6 +1,7 @@
 // Backup for Firebase: Supabase (Google sign-in + the same lists). Only used when Firebase can't be reached.
 import { SUPABASE_CONFIG, SUPABASE_READY, SITE_URL } from "./config.js";
 import { cleanUrl, panelFields } from "./backend-firebase.js";
+import { ADMIN_EMAIL } from "./config.js";
 
 let sb = null;
 async function load() {
@@ -14,13 +15,29 @@ const ok = (r) => { if (r.error) throw new Error(r.error.message); return r.data
 const hostOf = (url) => new URL(url).hostname.replace(/^www\./, "").toLowerCase();
 const newestFirst = (a, b) => b.ts - a.ts;
 const asUser = (u) => u && { uid: u.id, email: u.email, emailVerified: true, displayName: u.user_metadata?.full_name || "" };
+async function flagAdmin(user) {
+  if (!user || user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return user;
+  try {
+    const c = await load();
+    const r = await c.from("admins").select("email").eq("email", user.email.toLowerCase());
+    user.spsAdmin = !r.error && r.data.length > 0;
+  } catch { user.spsAdmin = false; }
+  return user;
+}
 
 export async function onUser(cb) {
   const c = await load();
-  c.auth.onAuthStateChange((_e, session) => cb(asUser(session?.user)));
-  cb(asUser((await c.auth.getSession()).data.session?.user));
+  c.auth.onAuthStateChange((_e, session) => { flagAdmin(asUser(session?.user)).then(cb); });
+  cb(await flagAdmin(asUser((await c.auth.getSession()).data.session?.user)));
 }
-export async function whoami() { const c = await load(); return asUser((await c.auth.getSession()).data.session?.user) || null; }
+export async function listAdmins() { const c = await load(); return ok(await c.from("admins").select("*")).map((r) => ({ id: r.email, email: r.email, addedBy: r.added_by, ts: Date.parse(r.added_at) || 0 })); }
+export async function addAdmin(user, email) {
+  const e = String(email || "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error("Enter a full email address.");
+  const c = await load(); ok(await c.from("admins").upsert({ email: e, added_by: user.email }));
+}
+export async function removeAdmin(email) { const c = await load(); ok(await c.from("admins").delete().eq("email", String(email).toLowerCase())); }
+export async function whoami() { const c = await load(); return (await flagAdmin(asUser((await c.auth.getSession()).data.session?.user))) || null; }
 export async function signIn() {
   const c = await load();
   ok(await c.auth.signInWithOAuth({ provider: "google", options: { redirectTo: SITE_URL } }));

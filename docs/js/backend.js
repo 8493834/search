@@ -2,7 +2,7 @@
 import * as fb from "./backend-firebase.js";
 import { FIREBASE_CONFIG, FIREBASE_READY, SUPABASE_READY } from "./config.js";
 
-export const { PANEL_TYPES, LINK_LABELS, isAdmin, cleanUrl, panelFields } = fb;
+export const { PANEL_TYPES, LINK_LABELS, isAdmin, isOwner, cleanUrl, panelFields } = fb;
 
 async function canReach(url) {
   const ctl = new AbortController();
@@ -23,7 +23,7 @@ function pick() {
     try { if (localStorage.getItem("backend") === "supabase") return import("./backend-supabase.js"); } catch {}
     const ok = (await Promise.all([
       canReach(`https://${FIREBASE_CONFIG.authDomain}/__/firebase/init.json`),
-      canReach("https://firestore.googleapis.com/"),
+      canReach("https://firestore.googleapis.com/$discovery/rest?version=v1"),
     ])).every(Boolean);
     return ok ? fb : import("./backend-supabase.js");
   })();
@@ -33,6 +33,9 @@ const call = (name) => async (...a) => (await pick())[name](...a);
 
 export const onUser = call("onUser");
 export const signIn = call("signIn");
+export const listAdmins = call("listAdmins");
+export const addAdmin = call("addAdmin");
+export const removeAdmin = call("removeAdmin");
 export const signOut = call("signOut");
 export const signInForApp = call("signInForApp");
 export const signInWithHandoff = call("signInWithHandoff");

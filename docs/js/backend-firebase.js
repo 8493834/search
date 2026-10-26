@@ -17,20 +17,47 @@ async function load() {
   return fb;
 }
 
-export const isAdmin = (user) =>
-  !!user && user.emailVerified && user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+const OWNER = () => ADMIN_EMAIL.toLowerCase();
+// The owner (ADMIN_EMAIL) is always an admin; others are the people the owner added on the Admins tab.
+export const isOwner = (user) => !!user && user.emailVerified && user.email?.toLowerCase() === OWNER();
+export const isAdmin = (user) => isOwner(user) || (!!user && user.emailVerified && user.spsAdmin === true);
+
+// Looks up whether this person was added as an admin, and remembers it on the user object.
+async function flagAdmin(user) {
+  if (!user || isOwner(user)) return user;
+  try {
+    const { store, db } = await load();
+    user.spsAdmin = (await store.getDoc(store.doc(db, "admins", user.email.toLowerCase()))).exists();
+  } catch { user.spsAdmin = false; }
+  return user;
+}
 
 export async function onUser(cb) {
   if (!FIREBASE_READY) return cb(null);
   const { auth, authInst } = await load();
-  auth.onAuthStateChanged(authInst, cb);
+  auth.onAuthStateChanged(authInst, async (u) => cb(await flagAdmin(u)));
+}
+
+export async function listAdmins() {
+  const { store, db } = await load();
+  return (await store.getDocs(store.collection(db, "admins"))).docs.map((d) => ({ id: d.id, email: d.id, ...d.data() }));
+}
+export async function addAdmin(user, email) {
+  const e = String(email || "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error("Enter a full email address.");
+  const { store, db } = await load();
+  await store.setDoc(store.doc(db, "admins", e), { addedBy: user.email, addedAt: store.serverTimestamp() });
+}
+export async function removeAdmin(email) {
+  const { store, db } = await load();
+  await store.deleteDoc(store.doc(db, "admins", String(email).toLowerCase()));
 }
 
 export async function whoami() {
   if (!FIREBASE_READY) return null;
   const { authInst } = await load();
   await authInst.authStateReady();
-  return authInst.currentUser;
+  return flagAdmin(authInst.currentUser);
 }
 
 export async function signIn() {

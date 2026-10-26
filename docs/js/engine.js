@@ -58,7 +58,7 @@ export class SearchEngine {
 
   async loadShard(i) {
     if (!this.shardCache.has(i)) {
-      const p = this.getJson(`s${i}.json`);
+      const p = this.getJson(`s${i}.json`, this.fresh);
       p.catch(() => this.shardCache.delete(i)); // never keep a failed download
       this.shardCache.set(i, p);
     }
@@ -67,14 +67,24 @@ export class SearchEngine {
 
   async loadChunk(c) {
     if (!this.chunkCache.has(c)) {
-      const p = this.getJson(`d${c}.json`);
+      const p = this.getJson(`d${c}.json`, this.fresh);
       p.catch(() => this.chunkCache.delete(c));
       this.chunkCache.set(c, p);
     }
     return this.chunkCache.get(c);
   }
 
-  async search(query, { limit = 10, offset = 0 } = {}) {
+  async search(query, opts = {}) {
+    try { return await this.searchOnce(query, opts); }
+    catch (err) {
+      if (err && err.code !== "STALE_INDEX") throw err;
+      // The downloaded index pieces don't match each other (an old copy was cached). Download them fresh once.
+      this.shardCache.clear(); this.chunkCache.clear(); this.fresh = true;
+      return this.searchOnce(query, opts);
+    }
+  }
+
+  async searchOnce(query, { limit = 10, offset = 0 } = {}) {
     const t0 = performance.now();
     const m = this.meta;
     const terms = this.queryTerms(query);
@@ -117,7 +127,9 @@ export class SearchEngine {
     const head = ranked.slice(0, TOP);
     const urls = await Promise.all(head.map(async ([id]) => {
       const chunk = await this.loadChunk(Math.floor(id / m.chunk));
-      return chunk[id % m.chunk][0];
+      const row = chunk[id % m.chunk];
+      if (!row) { const er = new Error("The search index is out of step with itself. Reload the page; if it keeps happening the site owner needs to re-run the crawl."); er.code = this.fresh ? "BAD_INDEX" : "STALE_INDEX"; throw er; }
+      return row[0];
     }));
     const qWords = new Set(tokenize(query));
     const groups = new Map(); // site (e.g. google.com) -> { label, root, rest }
@@ -152,7 +164,7 @@ export class SearchEngine {
     const results = await Promise.all(
       page.map(async ([id, score]) => {
         const chunk = await this.loadChunk(Math.floor(id / m.chunk));
-        const [url, title, description, text] = chunk[id % m.chunk];
+        const [url, title, description, text] = chunk[id % m.chunk] || [];
         return { id, score, url, title, description, text: text || "", snippet: makeSnippet(text || description, stems) };
       })
     );

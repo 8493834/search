@@ -57,14 +57,14 @@ async function withBusy(btn, fn) {
 }
 
 /* ---------- search engine ---------- */
-const engine = new SearchEngine(async (path) => {
+const engine = new SearchEngine(async (path, fresh) => {
   // A stalled or failed download must not stick: time out, retry once, and report the problem.
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 10000);
     try {
-      const r = await fetch(`data/${path}${path === "meta.json" ? "" : dataVersion}`, { signal: ctl.signal, cache: attempt ? "reload" : "default" });
+      const r = await fetch(`data/${path}${path === "meta.json" ? "" : dataVersion}`, { signal: ctl.signal, cache: attempt || fresh ? "reload" : "default" });
       if (!r.ok) throw new Error(`Could not load ${path} (${r.status})`);
       return await r.json();
     } catch (e) { lastErr = e.name === "AbortError" ? new Error(`Loading ${path} took too long`) : e; }
@@ -596,9 +596,10 @@ async function viewManage() {
     h("a", { class: "btn", href: runUrl, target: "_blank", rel: "noopener noreferrer" }, "Run crawl now (opens GitHub)"),
     tabs, body));
 
-  let pending = [], sites = [], panelReqs = [], livePanels = [], builtInPanels = [];
+  let pending = [], sites = [], panelReqs = [], livePanels = [], builtInPanels = [], admins = [];
   async function reload() {
     [pending, sites, panelReqs, livePanels] = await Promise.all([be.listPending(), be.listSites(), be.listPendingPanelRequests(), be.listPanels()]);
+    if (be.isOwner(state.user)) admins = await be.listAdmins().catch(() => []);
     builtInPanels = await fetch("data/panels.json").then((r) => (r.ok ? r.json() : [])).catch(() => []);
     panelsLoad = null; // so the next search sees the change
     draw();
@@ -647,10 +648,10 @@ async function viewManage() {
   };
   function draw() {
     tabs.replaceChildren(
-      ...[["requests", `Requests (${pending.length})`], ["sites", `Current sites (${sites.length})`], ["panelreq", `Panel requests (${panelReqs.length})`], ["panels", `Panels (${livePanels.length})`]].map(([id, label]) =>
+      ...[["requests", `Requests (${pending.length})`], ["sites", `Current sites (${sites.length})`], ["panelreq", `Panel requests (${panelReqs.length})`], ["panels", `Panels (${livePanels.length})`], ...(be.isOwner(state.user) ? [["admins", `Admins (${admins.length + 1})`]] : [])].map(([id, label]) =>
         h("button", { class: "tab", role: "tab", "aria-selected": String(state.manageTab === id),
           onclick: () => { state.manageTab = id; draw(); } }, label)));
-    body.replaceChildren(state.manageTab === "requests" ? drawRequests() : state.manageTab === "sites" ? drawSites() : state.manageTab === "panelreq" ? drawPanelReqs() : drawPanels());
+    body.replaceChildren(state.manageTab === "requests" ? drawRequests() : state.manageTab === "sites" ? drawSites() : state.manageTab === "panelreq" ? drawPanelReqs() : state.manageTab === "admins" && be.isOwner(state.user) ? drawAdmins() : drawPanels());
   }
   function drawRequests() {
     if (!pending.length) return h("p", { class: "sub" }, "No requests waiting.");
@@ -666,6 +667,24 @@ async function viewManage() {
           h("p", { class: "sub" }, `From ${r.email}, ${fmtDate(r.ts)}`)),
         h("div", { class: "acts" }, acc, den));
     }));
+  }
+  function drawAdmins() {
+    const email = h("input", { type: "email", required: true, placeholder: "their-google-email@gmail.com", "aria-label": "Admin email" });
+    const add = h("button", { class: "btn primary", type: "submit" }, "Add admin");
+    const form = h("form", { class: "inline-form", onsubmit: (e) => {
+      e.preventDefault();
+      withBusy(add, async () => { await be.addAdmin(state.user, email.value); toast("Admin added."); await reload(); });
+    } }, email, add);
+    const rows = admins.map((a) => {
+      const del = h("button", { class: "btn small danger" }, "Remove");
+      del.onclick = () => { if (!confirm(`Remove ${a.email} as an admin?`)) return; withBusy(del, async () => { await be.removeAdmin(a.email); toast("Removed."); await reload(); }); };
+      return h("div", { class: "row" }, h("div", { class: "info" }, h("strong", {}, a.email), h("p", { class: "sub" }, a.addedBy ? `Added by ${a.addedBy}` : "Admin")), h("div", { class: "acts" }, del));
+    });
+    return h("div", {},
+      h("p", { class: "sub" }, "Admins can accept and deny requests and edit sites and panels. Only you, the owner, can add or remove admins. They must sign in with that exact Google account."),
+      h("div", { class: "card" }, form),
+      h("div", { class: "row" }, h("div", { class: "info" }, h("strong", {}, state.user.email), h("p", { class: "sub" }, "Owner (can't be removed)"))),
+      rows.length ? rows : h("p", { class: "sub" }, "No other admins yet."));
   }
   function drawPanelReqs() {
     if (!panelReqs.length) return h("p", { class: "sub" }, "No panel requests waiting.");
