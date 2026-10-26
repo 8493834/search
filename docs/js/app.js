@@ -1,4 +1,4 @@
- import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL, OVERVIEW_API_URLS, OVERVIEW_API_FALLBACK_URLS, SUPABASE_READY } from "./config.js";
+import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL, OVERVIEW_API_URLS, OVERVIEW_API_FALLBACK_URLS, SUPABASE_READY } from "./config.js";
 import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
 import * as be from "./backend.js";
@@ -219,7 +219,7 @@ async function viewSearch(q) {
         return `${r.title || r.url}. ${own || r.description || (r.text || "").slice(0, 500)}`.slice(0, 800);
       });
       // Try each helper in turn; move on if one is blocked, down or times out.
-      let text = "", lastErr = null;
+      let text = "", lastErr = null; const errs = [];
       const urls = be.isTestBackup() ? OVERVIEW_API_FALLBACK_URLS.filter(Boolean) : OVERVIEW_API_URLS;
       if (!urls.length) throw new Error("no backup helper is set up");
       const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
@@ -238,15 +238,17 @@ async function viewSearch(q) {
             let d = "";
             try { const j = await resp.json(); d = j.detail || j.error || ""; } catch {}
             lastErr = new Error(`AI helper error ${resp.status}${d ? ": " + d : ""}`);
+            errs.push(`${new URL(url).hostname}: ${lastErr.message}`);
             continue;
           }
           const t = String((await resp.json()).text || "").trim();
           if (grounded(t)) { text = t; break; }
           lastErr = new Error("the AI's answer didn't stick to the sources");
-        } catch (e) { lastErr = e; }
+          errs.push(`${new URL(url).hostname}: ${lastErr.message}`);
+        } catch (e) { lastErr = e; errs.push(`${new URL(url).hostname}: ${e.name === "AbortError" ? "timed out" : e.message}`); }
         finally { clearTimeout(timer); }
       }
-      if (!text) throw lastErr || new Error("no AI helper reachable");
+      if (!text) throw errs.length > 1 ? new Error(errs.join(" | ")) : lastErr || new Error("no AI helper reachable");
       el.replaceChildren(...text.split(/(\[\d+\])/).map((part) => {
         const m = part.match(/^\[(\d+)\]$/), r2 = m && res.results[Number(m[1]) - 1];
         return r2 ? h("sup", {}, h("a", { href: safeHref(r2.url), rel: "noopener noreferrer", "aria-label": `Source ${m[1]}` }, part)) : part;
