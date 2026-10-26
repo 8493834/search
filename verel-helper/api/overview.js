@@ -1,7 +1,3 @@
-// Second backup overview helper. Runs free on Vercel (vercel.com) as an Edge Function, using OpenRouter's free models.
-// Different host AND different AI provider from the other two, so one outage or block can't take out all three.
-// It lives in the vercel-helper folder of the main repo. In Vercel, import the main repo and set Root Directory to vercel-helper.
-// Add the environment variable OPENROUTER_API_KEY (free key from openrouter.ai). The address is https://YOUR-APP.vercel.app/api/overview
 export const config = { runtime: "edge" };
 
 const ALLOWED_ORIGIN = "https://8493834.github.io";

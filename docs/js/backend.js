@@ -1,4 +1,3 @@
-// Picks which service to use: Firebase normally, Supabase if Firebase can't be reached.
 import * as fb from "./backend-firebase.js";
 import { FIREBASE_CONFIG, FIREBASE_READY, SUPABASE_READY } from "./config.js";
 
@@ -11,7 +10,6 @@ async function canReach(url) {
   catch { return false; } finally { clearTimeout(timer); }
 }
 
-// "Test backup" mode: only the backup services are used (admin switch in the top bar).
 export const isTestBackup = () => { try { return localStorage.getItem("backend") === "supabase"; } catch { return false; } };
 export function setTestBackup(on) { try { on ? localStorage.setItem("backend", "supabase") : localStorage.removeItem("backend"); return true; } catch { return false; } }
 
@@ -22,7 +20,7 @@ function pick() {
     if (!FIREBASE_READY) return import("./backend-supabase.js");
     try { if (localStorage.getItem("backend") === "supabase") return import("./backend-supabase.js"); } catch {}
     const ok = (await Promise.all([
-      canReach(`https://${FIREBASE_CONFIG.authDomain}/__/firebase/init.json`),
+      canReach(`https://${FIREBASE_CONFIG.authDomain}/__/auth/handler`),
       canReach("https://firestore.googleapis.com/$discovery/rest?version=v1"),
     ])).every(Boolean);
     return ok ? fb : import("./backend-supabase.js");
@@ -57,14 +55,12 @@ export const acceptPanelRequest = call("acceptPanelRequest");
 export const denyPanelRequest = call("denyPanelRequest");
 export const deletePanel = call("deletePanel");
 
-// ---- Backup check: is everything saved on both services? ----
 const PROVIDERS = {
   firebase: { name: "Firebase", ready: FIREBASE_READY, load: async () => fb },
   supabase: { name: "Supabase", ready: SUPABASE_READY, load: () => import("./backend-supabase.js") },
 };
 const siteKey = (u) => { try { const x = new URL(u); return x.hostname.replace(/^www\./, "").toLowerCase() + x.pathname.replace(/\/$/, "") + x.search; } catch { return String(u); } };
 
-/** Compares both services. Returns null if only one is set up. */
 export async function backupStatus() {
   if (!PROVIDERS.firebase.ready || !PROVIDERS.supabase.ready) return null;
   const read = async (id) => {
@@ -78,7 +74,7 @@ export async function backupStatus() {
   const have = { firebase, supabase };
   const missing = { firebase: { sites: [], panels: [] }, supabase: { sites: [], panels: [] } };
   for (const [from, to] of [["firebase", "supabase"], ["supabase", "firebase"]]) {
-    if (!have[from].ok || !have[to].ok) continue; // can't compare if one side wasn't readable
+    if (!have[from].ok || !have[to].ok) continue; 
     const sk = new Set(have[to].sites.map((x) => siteKey(x.url)));
     const pk = new Set(have[to].panels.map((x) => x.id));
     missing[to].sites = have[from].sites.filter((x) => !sk.has(siteKey(x.url)));
@@ -87,7 +83,6 @@ export async function backupStatus() {
   return { have, missing, names: { firebase: "Firebase", supabase: "Supabase" } };
 }
 
-/** Copies the given sites and panels into one service ("firebase" or "supabase"). Needs the admin signed in there. */
 export async function backupTo(target, { sites = [], panels = [] }) {
   const m = await PROVIDERS[target].load();
   const user = await m.whoami();
