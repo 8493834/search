@@ -1,28 +1,3 @@
-import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL, OVERVIEW_API_URLS, OVERVIEW_API_FALLBACK_URLS, SUPABASE_READY } from "./config.js";
-import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
-import { getSetting, setSetting } from "./settings.js";
-import * as be from "./backend.js";
-import { findPanel, factPairs, aliasesFor, linkPairs, LINK_SITES } from "./panels.js";
-
-const $top = document.getElementById("top");
-const $app = document.getElementById("app");
-const $toast = document.getElementById("toast");
-const state = { user: null, meta: null, indexError: null, manageTab: "requests", panels: null };
-let dataVersion = "";
-
-document.title = SITE_NAME;
-// Google blocks sign-in inside app windows. The desktop app signs in through your browser and gets the result back.
-const DESKTOP_APP = !!window.spsApp;                                          // Windows / Mac / Linux app
-const ANDROID_APP = !DESKTOP_APP && /SPSSearchApp/.test(navigator.userAgent);  // Android app
-const APP_SIGNIN_URL = SITE_URL + "#/app-signin";
-if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
-
-/* ---------- tiny helpers ---------- */
-function h(tag, props = {}, ...kids) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(props || {})) {
-    if (v == null || v === false) continue;
-    if (k === "class") el.className = v;
     else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (v === true) el.setAttribute(k, "");
     else el.setAttribute(k, v);
@@ -50,12 +25,12 @@ const scopeKey = (u) => {
   } catch { return ""; }
 };
 const prettyUrl = (u) => { try { const x = new URL(u); return x.hostname + (x.pathname === "/" ? "" : x.pathname); } catch { return u; } };
-
+ 
 async function withBusy(btn, fn) {
   btn.disabled = true;
   try { await fn(); } catch (e) { toast(e.message || "Something went wrong."); } finally { btn.disabled = false; }
 }
-
+ 
 /* ---------- search engine ---------- */
 const engine = new SearchEngine(async (path, fresh) => {
   // A stalled or failed download must not stick: time out, retry once, and report the problem.
@@ -76,7 +51,7 @@ const engineReady = engine.init().then(
   (meta) => { state.meta = meta; dataVersion = `?v=${encodeURIComponent(meta.built || "0")}`; },
   (e) => { state.indexError = e; }
 );
-
+ 
 if (ANDROID_APP) {
   // The Android app passes the sign-in result in with this event (see MainActivity.java).
   window.addEventListener("sps-auth", async (e) => {
@@ -90,7 +65,7 @@ if (DESKTOP_APP) {
     catch (e) { toast("Sign-in failed: " + (e.message || e)); }
   });
 }
-
+ 
 /* ---------- header ---------- */
 function renderHeader() {
   const nav = h("nav", { class: "nav", "aria-label": "Main" },
@@ -122,7 +97,7 @@ function renderHeader() {
 async function doSignIn() {
   try { await be.signIn(); } catch (e) { if (e.code !== "auth/popup-closed-by-user") toast(e.message); }
 }
-
+ 
 /* ---------- search box ---------- */
 function searchBox(value = "", autofocus = false) {
   const input = h("input", {
@@ -138,7 +113,7 @@ function searchBox(value = "", autofocus = false) {
     },
   }, input, h("button", { type: "submit" }, "Search"));
 }
-
+ 
 /* ---------- knowledge panels ---------- */
 let panelsLoad = null;
 function loadPanels() {
@@ -174,7 +149,7 @@ function panelCard(p) {
     h("p", { class: "kp-fine" }, p.requestedBy ? "Added by request and reviewed by the site admin. " : "Compiled by SPS Search from public information. ",
       "It may be out of date. ", h("a", { href: "#/panel-request" }, "Request or improve a panel")));
 }
-
+ 
 /* ---------- views ---------- */
 async function viewHome() {
   await engineReady;
@@ -193,14 +168,14 @@ async function viewHome() {
     )
   );
 }
-
+ 
 async function viewSearch(q) {
   document.title = `${q} - ${SITE_NAME}`;
   const list = h("div", { "aria-live": "polite" });
   const meta = h("p", { class: "meta-line" }, "Searching…");
   const more = h("button", { class: "btn", style: "display:none" }, "Show more results");
   $app.replaceChildren(h("section", { class: "results-wrap" }, searchBox(q), meta, list, more));
-
+ 
   await engineReady;
   if (state.indexError || !state.meta?.numDocs) {
     meta.textContent = "";
@@ -208,7 +183,7 @@ async function viewSearch(q) {
       h("p", {}, "The index is empty. Run the crawler (README, step 4) and reload.")));
     return;
   }
-
+ 
   const PAGE = 10;
   let offset = 0;
   // Optional: ask the free online helper (see SETUP-OVERVIEW.md) to write the overview from the top results.
@@ -316,7 +291,7 @@ async function viewSearch(q) {
   more.onclick = () => withBusy(more, loadMore);
   await loadMore();
 }
-
+ 
 function viewSettings() {
   document.title = `Settings - ${SITE_NAME}`;
   const on = getSetting("overview");
@@ -354,7 +329,7 @@ function viewSettings() {
     aiRow,
     note));
 }
-
+ 
 async function viewAdd() {
   document.title = `Get my site on here - ${SITE_NAME}`;
   const page = h("section", { class: "page" },
@@ -362,7 +337,7 @@ async function viewAdd() {
     h("p", { class: "intro" },
       "Send in your site's address. If it's approved, the crawler picks it up on its next run and its pages become searchable. The crawler follows links within your site only and obeys your robots.txt."));
   $app.replaceChildren(page);
-
+ 
   if (!FIREBASE_READY) {
     page.append(h("div", { class: "notice warn" }, "Sign-in isn't set up yet. The site owner needs to finish the Firebase setup in the README."));
     return;
@@ -377,7 +352,7 @@ async function viewAdd() {
         : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
     return;
   }
-
+ 
   const url = h("input", { id: "url", type: "url", required: true, placeholder: "https://example.com", autocomplete: "url" });
   const desc = h("textarea", { id: "desc", rows: 3, maxlength: 300, placeholder: "What is on your site?" });
   const err = h("p", { class: "err", role: "alert" });
@@ -407,7 +382,7 @@ async function viewAdd() {
       h("div", { class: "field" }, h("label", { for: "desc" }, "Short description (optional)"), desc),
       submit, err),
     h("h2", {}, "Your requests"), mine);
-
+ 
   async function refreshMine() {
     try {
       const rows = await be.listMyRequests(state.user);
@@ -420,7 +395,7 @@ async function viewAdd() {
   }
   refreshMine();
 }
-
+ 
 async function viewPanelRequest() {
   document.title = `Request a knowledge panel - ${SITE_NAME}`;
   const page = h("section", { class: "page" },
@@ -428,7 +403,7 @@ async function viewPanelRequest() {
     h("p", { class: "intro" },
       "A knowledge panel is the fact box that appears beside search results for a company, organisation, place or other well-known thing. Tell us about yours. The site admin reviews every request, so only include facts you can stand behind."));
   $app.replaceChildren(page);
-
+ 
   if (!FIREBASE_READY) { page.append(h("div", { class: "notice warn" }, "Sign-in isn't set up yet.")); return; }
   if (!state.user) {
     page.append(h("div", { class: "card" },
@@ -438,7 +413,7 @@ async function viewPanelRequest() {
         : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
     return;
   }
-
+ 
   const name = h("input", { id: "pn", type: "text", required: true, maxlength: 80, placeholder: "Example Pty Ltd" });
   const type = h("select", { id: "pt" }, be.PANEL_TYPES.map((t) => h("option", { value: t }, t)));
   const site = h("input", { id: "pw", type: "url", placeholder: "https://example.com (optional)" });
@@ -466,7 +441,7 @@ async function viewPanelRequest() {
       h("div", { class: "field" }, h("label", {}, "Links (optional)"), h("div", { class: "link-grid" }, LINK_SITES.map((n) => h("div", {}, h("label", { class: "sub", for: "pl-" + n }, n), linkInputs[n])))),
       submit, err),
     h("h2", {}, "Your panel requests"), mine);
-
+ 
   async function refreshMine() {
     try {
       const rows = await be.listMyPanelRequests(state.user);
@@ -478,7 +453,7 @@ async function viewPanelRequest() {
   }
   refreshMine();
 }
-
+ 
 function adminOnly(title) {
   document.title = `${title} - ${SITE_NAME}`;
   if (!be.isAdmin(state.user)) {
@@ -488,7 +463,7 @@ function adminOnly(title) {
   }
   return true;
 }
-
+ 
 async function viewEditSite(id) {
   if (!adminOnly("Edit site")) return;
   const page = h("section", { class: "page" }, h("h1", {}, "Edit site"));
@@ -513,7 +488,7 @@ async function viewEditSite(id) {
     h("div", { class: "field" }, h("label", { for: "es-desc" }, "Description"), desc),
     h("div", { class: "acts" }, save, h("a", { class: "btn", href: "#/manage" }, "Cancel")), err));
 }
-
+ 
 async function viewEditPanel(id) {
   if (!adminOnly(id ? "Edit panel" : "Add panel")) return;
   const page = h("section", { class: "page" }, h("h1", {}, id ? "Edit knowledge panel" : "Add knowledge panel"));
@@ -561,7 +536,7 @@ async function viewEditPanel(id) {
       h("div", { class: "field" }, h("label", {}, "Links"), h("div", { class: "link-grid" }, LINK_SITES.map((n) => h("div", {}, h("label", { class: "sub", for: "epl-" + n }, n), links[n])))),
       h("div", { class: "acts" }, save, h("a", { class: "btn", href: "#/manage" }, "Cancel")), err));
 }
-
+ 
 async function viewAppSignin() {
   document.title = `Sign in - ${SITE_NAME}`;
   const msg = h("p", { class: "intro" }, "Sign in with Google here, then you'll be sent back to the SPS Search app.");
@@ -583,7 +558,7 @@ async function viewAppSignin() {
       : h("div", { class: "notice warn" }, "Sign-in isn't set up yet."),
     h("p", { class: "hint" }, "Don't have the app? You can just use this website directly.")));
 }
-
+ 
 async function viewManage() {
   document.title = `Manage - ${SITE_NAME}`;
   if (!be.isAdmin(state.user)) {
@@ -602,7 +577,7 @@ async function viewManage() {
     h("p", { class: "intro" }, `Accepting or deleting a site takes effect in the site list immediately. Search results change after the next crawl. ${built}`),
     h("a", { class: "btn", href: runUrl, target: "_blank", rel: "noopener noreferrer" }, "Run crawl now (opens GitHub)"),
     tabs, body));
-
+ 
   let pending = [], sites = [], panelReqs = [], livePanels = [], builtInPanels = [], admins = [];
   async function reload() {
     [pending, sites, panelReqs, livePanels] = await Promise.all([be.listPending(), be.listSites(), be.listPendingPanelRequests(), be.listPanels()]);
@@ -764,7 +739,7 @@ async function viewManage() {
   }
   try { await reload(); } catch (e) { body.replaceChildren(h("div", { class: "notice warn" }, `Couldn't load data: ${e.message}`)); }
 }
-
+ 
 /* ---------- router ---------- */
 function route() {
   const raw = location.hash.slice(1) || "/";
@@ -783,11 +758,12 @@ function route() {
   return viewHome();
 }
 window.addEventListener("hashchange", route);
-
+ 
 renderHeader();
 route(); // draw the page right away; never wait for Firebase (it may be slow, blocked or offline)
 be.onUser((user) => {
   state.user = user;
   renderHeader();
   route(); // re-render so signed-in / admin views update
-}).catch(() => {}); {});
+}).catch(() => {});
+ 
