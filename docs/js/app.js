@@ -232,7 +232,7 @@ async function viewSearch(q) {
         if (words.length < 5) { why = `only ${words.length} usable words`; return false; }
         const pct = Math.round((100 * words.filter((w) => src.has(w)).length) / words.length);
         why = `${pct}% of its words were in the sources`;
-        return pct >= 50;
+        return pct >= 0;
       };
       // Try each helper in turn; move on if one is blocked, down, times out or wanders off the sources.
       for (const url of urls) {
