@@ -211,17 +211,26 @@ async function viewSearch(q) {
 
   const PAGE = 10;
   const COMMON = new Set(("this that these those with from have has had been being were was are is not but also than then them they their there here what when where which while who whom whose why how will would could should can may might must shall into onto over under about above below after before again between through during each other another such some many much more most less least only just very both either neither same own too its itself your yours our ours his her hers him she you any all few several one two three four first second new used use uses using like make makes made provide provides provided include includes including based allow allows offers offer help helps said says say according however because since while although though per via").split(" "));
+  const NO_ANSWER = /(sources?|results?|passages?|information)[^.]{0,60}(do(es)? not|don't|doesn't|cannot|can't|no)[^.]{0,40}(contain|provide|mention|include|answer|address|say|have)|(no|not enough|insufficient) (relevant )?information|unable to (find|answer)|cannot (find|answer)/i;
   let offset = 0;
   // Optional: ask the free online helper (see SETUP-OVERVIEW.md) to write the overview from the top results.
   async function runAI(el, res, ov, quotes) {
     try {
-      const passages = res.results.slice(0, 5).map((r) => {
+      // If a knowledge panel matches (e.g. Google), it is a checked source too, so thin pages don't leave the AI empty-handed.
+      const panel = await loadPanels().then((all) => findPanel(q, all)).catch(() => null);
+      const nRes = panel ? 4 : 5; // the helpers accept at most 5 sources
+      const passages = res.results.slice(0, nRes).map((r) => {
         const own = ov.sentences.filter((x) => x.url === r.url).map((x) => x.text).join(" ");
         return `${r.title || r.url}. ${own || r.description || (r.text || "").slice(0, 500)}`.slice(0, 800);
       });
+      const srcFor = (n) => (n <= passages.length - (panel ? 1 : 0) ? res.results[n - 1] : panel && n === passages.length ? { url: panel.website || "#/search?q=" + encodeURIComponent(q) } : null);
+      if (panel) passages.push(`${panel.name} (${panel.type}). ${panel.summary} ${(panel.facts || []).join(". ")}`.slice(0, 800));
       // Try each helper in turn; move on if one is blocked, down or times out.
       let text = "", lastErr = null; const errs = [];
-      const urls = be.isTestBackup() ? OVERVIEW_API_FALLBACK_URLS.filter(Boolean) : OVERVIEW_API_URLS;
+      const fixUrl = (u) => { // http -> https, and a Vercel address with no path means the helper at /api/overview
+        try { const x = new URL(u.replace(/^http:/i, "https:")); if (/\.vercel\.app$/.test(x.hostname) && x.pathname === "/") x.pathname = "/api/overview"; return x.toString(); } catch { return u; }
+      };
+      const urls = (be.isTestBackup() ? OVERVIEW_API_FALLBACK_URLS.filter(Boolean) : OVERVIEW_API_URLS).map(fixUrl);
       if (!urls.length) throw new Error("no backup helper is set up");
       const src = new Set(tokenize(passages.join(" ") + " " + q).map(stem));
       // Keep an answer only if it sticks to the sources.
@@ -232,9 +241,8 @@ async function viewSearch(q) {
         if (words.length < 5) { why = `only ${words.length} usable words`; return false; }
         const pct = Math.round((100 * words.filter((w) => src.has(w)).length) / words.length);
         why = `${pct}% of its words were in the sources`;
-        return pct >= 0;
+        return pct >= 50;
       };
-      // Try each helper in turn; move on if one is blocked, down, times out or wanders off the sources.
       for (const url of urls) {
         const ctl = new AbortController();
         const timer = setTimeout(() => ctl.abort(), 12000);
@@ -248,21 +256,23 @@ async function viewSearch(q) {
             continue;
           }
           const t = String((await resp.json()).text || "").trim();
+          // The AI saying "the sources don't answer this" is honest, but not an overview. Show the quotes and stop asking.
+          if (NO_ANSWER.test(t)) { const e2 = new Error("the results don't answer this directly"); e2.noAnswer = true; throw e2; }
           if (grounded(t)) { text = t; break; }
           lastErr = new Error(`the AI's answer didn't stick to the sources (${why})`);
           errs.push(`${new URL(url).hostname}: ${lastErr.message}`);
-        } catch (e) { lastErr = e; errs.push(`${new URL(url).hostname}: ${e.name === "AbortError" ? "timed out" : e.message}`); }
+        } catch (e) { if (e.noAnswer) throw e; lastErr = e; errs.push(`${new URL(url).hostname}: ${e.name === "AbortError" ? "timed out" : e.message}`); }
         finally { clearTimeout(timer); }
       }
       if (!text) throw errs.length > 1 ? new Error(errs.join(" | ")) : lastErr || new Error("no AI helper reachable");
       el.replaceChildren(...text.split(/(\[\d+\])/).map((part) => {
-        const m = part.match(/^\[(\d+)\]$/), r2 = m && res.results[Number(m[1]) - 1];
+        const m = part.match(/^\[(\d+)\]$/), r2 = m && srcFor(Number(m[1]));
         return r2 ? h("sup", {}, h("a", { href: safeHref(r2.url), rel: "noopener noreferrer", "aria-label": `Source ${m[1]}` }, part)) : part;
       }), h("span", { class: "ov-badge" }, " AI-written, can be wrong. Check the sources."));
     } catch (e) {
       // Fall back to the quoted sentences, and say briefly why the AI part didn't show.
       el.className = "ov-fine";
-      el.textContent = e.name === "AbortError" ? "AI overview timed out, showing quotes instead." : `AI overview unavailable (${e.message}). Showing quotes instead.`;
+      el.textContent = e.noAnswer ? "The results don't answer this directly, so here are quotes from them instead." : e.name === "AbortError" ? "AI overview timed out, showing quotes instead." : `AI overview unavailable (${e.message}). Showing quotes instead.`;
       quotes.open = true;
     }
   }
