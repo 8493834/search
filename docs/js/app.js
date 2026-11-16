@@ -3,10 +3,12 @@ import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
 import * as be from "./backend.js";
 import { findPanel, factPairs, aliasesFor, linkPairs, LINK_SITES } from "./panels.js";
+import { firstVisit, reviewAgreements, requireConsent, hasConsent, getConsent, saveConsent, featureCard, reviewLine, legalLink, FEATURES } from "./legal.js";
 
 const $top = document.getElementById("top");
 const $app = document.getElementById("app");
 const $toast = document.getElementById("toast");
+const $foot = document.getElementById("foot");
 const state = { user: null, meta: null, indexError: null, manageTab: "requests", panels: null };
 let dataVersion = "";
 
@@ -120,6 +122,7 @@ function renderHeader() {
   $top.replaceChildren(h("a", { class: "brand", href: "#/" }, h("img", { src: "img/favicon.png", alt: "", width: 34, height: 34 }), SITE_NAME), nav);
 }
 async function doSignIn() {
+  if (!(await requireConsent("signin"))) return;
   try { await be.signIn(); } catch (e) { if (e.code !== "auth/popup-closed-by-user") toast(e.message); }
 }
 
@@ -285,7 +288,7 @@ async function viewSearch(q) {
       body.append(...s.segments.map((x) => (x.hit ? h("mark", {}, x.text) : x.text)),
         h("sup", {}, h("a", { href: safeHref(s.url), rel: "noopener noreferrer", "aria-label": `Source ${s.n}` }, `[${s.n}]`)));
     });
-    const useAI = !!OVERVIEW_API_URL && getSetting("aionline");
+    const useAI = !!OVERVIEW_API_URL && getSetting("aionline") && hasConsent("ai");
     const ai = useAI ? h("p", { class: "ov-ai", "aria-live": "polite" }, "Writing…") : null;
     const quotes = useAI ? h("details", { class: "ov-quotes" }, h("summary", {}, "Quoted from the results"), body) : null;
     if (useAI) runAI(ai, res, ov, quotes);
@@ -348,8 +351,13 @@ function viewSettings() {
   };
   const mkSwitch = (key, labelId) => {
     const b = h("button", { class: "switch", role: "switch", "aria-checked": String(!!getSetting(key)), "aria-labelledby": labelId }, h("span", { class: "knob" }));
-    b.onclick = () => {
+    b.onclick = async () => {
       const next = b.getAttribute("aria-checked") !== "true";
+      if (next && key === "aionline") { // AI needs its own agreement first
+        const had = hasConsent("ai");
+        if (!(await requireConsent("ai"))) return;
+        if (!had) { setSetting(key, true); toast("Saved."); viewSettings(); return; } // redraw so "Your agreements" is current
+      }
       const ok = setSetting(key, next);
       b.setAttribute("aria-checked", String(next));
       note.textContent = ok ? "Saved on this device." : "Couldn't save. It will reset when you leave this page.";
@@ -370,7 +378,25 @@ function viewSettings() {
         h("p", { class: "sub" }, "Show a short summary above search results, built from sentences in the top results with links to where each came from. It is not written by an AI language model. Off by default.")),
       sw),
     aiRow,
-    note));
+    note,
+    agreementsCard()));
+}
+
+function agreementsCard() {
+  const c = getConsent() || {};
+  const yes = (v) => (v ? "Agreed" : "Not agreed");
+  const row = (label, v) => h("p", { class: "sub", style: "margin:.2rem 0" }, `${label}: `, h("strong", {}, yes(v)));
+  return h("div", { class: "card" },
+    h("h2", { style: "margin-top:0;font-size:1.1rem" }, "Your agreements"),
+    row("Terms and Privacy Policy", c.terms), row(FEATURES.ai.label, c.ai), row(FEATURES.submit.label, c.submit), row(FEATURES.signin.label, c.signin),
+    h("p", { class: "hint" }, "Saved on this device. ", legalLink("terms.html", "Terms and Conditions"), " · ", legalLink("privacy.html", "Privacy Policy")),
+    h("button", { class: "btn", onclick: async () => {
+      if (!(await reviewAgreements())) return;
+      const now = getConsent() || {};
+      if (!now.ai) setSetting("aionline", false);                 // withdrawing the AI agreement switches it off
+      if (!now.signin && state.user) be.signOut();                // and withdrawing sign-in signs you out
+      toast("Saved."); viewSettings();
+    } }, "Review or change my agreements"));
 }
 
 async function viewAdd() {
@@ -392,9 +418,11 @@ async function viewAdd() {
         : "Sign in with Google to send a request. We only see your email address."),
       DESKTOP_APP || ANDROID_APP
         ? h("a", { class: "btn primary", href: APP_SIGNIN_URL, target: "_blank", rel: "noopener" }, "Sign in with Google")
-        : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
+        : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google"),
+      reviewLine()));
     return;
   }
+  if (!hasConsent("submit")) { page.append(featureCard("submit", () => viewAdd())); return; }
 
   const url = h("input", { id: "url", type: "url", required: true, placeholder: "https://example.com", autocomplete: "url" });
   const desc = h("textarea", { id: "desc", rows: 3, maxlength: 300, placeholder: "What is on your site?" });
@@ -453,9 +481,11 @@ async function viewPanelRequest() {
       h("p", { style: "margin-top:0" }, DESKTOP_APP || ANDROID_APP ? "Your browser opens for the Google sign-in and then sends you back here."
         : "Sign in with Google to send a request. We only see your email address."),
       DESKTOP_APP || ANDROID_APP ? h("a", { class: "btn primary", href: APP_SIGNIN_URL, target: "_blank", rel: "noopener" }, "Sign in with Google")
-        : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google")));
+        : h("button", { class: "btn primary", onclick: doSignIn }, "Sign in with Google"),
+      reviewLine()));
     return;
   }
+  if (!hasConsent("submit")) { page.append(featureCard("submit", () => viewPanelRequest())); return; }
 
   const name = h("input", { id: "pn", type: "text", required: true, maxlength: 80, placeholder: "Example Pty Ltd" });
   const type = h("select", { id: "pt" }, be.PANEL_TYPES.map((t) => h("option", { value: t }, t)));
@@ -586,6 +616,7 @@ async function viewAppSignin() {
   const btn = h("button", { class: "btn primary" }, "Continue with Google");
   const back = h("div");
   btn.onclick = () => withBusy(btn, async () => {
+    if (!(await requireConsent("signin"))) return;
     const t = await be.signInForApp();
     const link = "spssearch://auth?" + new URLSearchParams({ id_token: t.idToken, access_token: t.accessToken });
     msg.textContent = "Signed in. Your browser may ask to open SPS Search. Choose Open.";
@@ -597,7 +628,7 @@ async function viewAppSignin() {
     back.replaceChildren(h("a", { class: "btn primary", href: "#/" }, "Go to SPS Search"));
   }
   $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Sign in"), msg,
-    FIREBASE_READY ? h("div", { class: "card" }, state.user ? back : btn, state.user ? "" : back)
+    FIREBASE_READY ? h("div", { class: "card" }, state.user ? back : btn, state.user ? "" : back, state.user ? null : reviewLine())
       : h("div", { class: "notice warn" }, "Sign-in isn't set up yet."),
     h("p", { class: "hint" }, "Don't have the app? You can just use this website directly.")));
 }
@@ -801,6 +832,22 @@ function route() {
   return viewHome();
 }
 window.addEventListener("hashchange", route);
+
+function renderFooter() {
+  $foot.replaceChildren(
+    legalLink("terms.html", "Terms and Conditions"), " · ", legalLink("privacy.html", "Privacy Policy"), " · ",
+    h("a", { href: "#/settings" }, "Your agreements"));
+}
+renderFooter();
+
+// First visit (or the terms changed): ask before anything else. Declining leaves the site unused.
+firstVisit().then((agreed) => {
+  if (agreed) return;
+  $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Agreement needed"),
+    h("p", { class: "intro" }, "SPS Search can't be used until you agree to the Terms and Conditions and the Privacy Policy. Nothing has been saved."),
+    h("p", {}, legalLink("terms.html", "Read the Terms"), " · ", legalLink("privacy.html", "Read the Privacy Policy")),
+    h("button", { class: "btn primary", onclick: () => location.reload() }, "Review and agree")));
+});
 
 renderHeader();
 route(); // draw the page right away; never wait for Firebase (it may be slow, blocked or offline)
