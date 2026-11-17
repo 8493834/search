@@ -1,6 +1,7 @@
 import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL, OVERVIEW_API_URLS, OVERVIEW_API_FALLBACK_URLS, SUPABASE_READY } from "./config.js";
 import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
+import * as pf from "./profiles.js";
 import * as be from "./backend.js";
 import { findPanel, factPairs, aliasesFor, linkPairs, LINK_SITES } from "./panels.js";
 import { firstVisit, reviewAgreements, requireConsent, hasConsent, getConsent, saveConsent, featureCard, reviewLine, legalLink, FEATURES } from "./legal.js";
@@ -13,6 +14,7 @@ const state = { user: null, meta: null, indexError: null, manageTab: "requests",
 let dataVersion = "";
 
 document.title = SITE_NAME;
+pf.init(); // makes sure there is a profile (the first one takes over any settings saved before profiles existed)
 // Google blocks sign-in inside app windows. The desktop app signs in through your browser and gets the result back.
 const DESKTOP_APP = !!window.spsApp;                                          // Windows / Mac / Linux app
 const ANDROID_APP = !DESKTOP_APP && /SPSSearchApp/.test(navigator.userAgent);  // Android app
@@ -97,7 +99,9 @@ if (DESKTOP_APP) {
 function renderHeader() {
   const nav = h("nav", { class: "nav", "aria-label": "Main" },
     h("a", { href: "#/add" }, "Get my site on here"),
-    h("a", { href: "#/settings" }, "Settings"));
+    h("a", { href: "#/history" }, "History"),
+    h("a", { href: "#/settings" }, "Settings"),
+    profileChip());
   if (FIREBASE_READY) {
     if (state.user) {
       if (be.isAdmin(state.user)) nav.append(h("a", { class: "btn small primary", href: "#/manage" }, "Manage"));
@@ -132,14 +136,38 @@ function searchBox(value = "", autofocus = false) {
     type: "search", name: "q", value, placeholder: "Search…", autocomplete: "off",
     "aria-label": "Search", autofocus, enterkeyhint: "search",
   });
-  return h("form", {
-    class: "searchbox", role: "search",
-    onsubmit: (e) => {
+  const go = (q) => { q = q.trim(); if (q) location.hash = `#/search?q=${encodeURIComponent(q)}`; };
+  const form = h("form", { class: "searchbox", role: "search", onsubmit: (e) => { e.preventDefault(); go(input.value); } },
+    input, h("button", { type: "submit" }, "Search"));
+
+  // Recent searches from this profile's history, each with a button to delete it.
+  const list = h("ul", { class: "suggest", hidden: true, "aria-label": "Recent searches" });
+  let sel = -1;
+  const hide = () => { list.hidden = true; sel = -1; };
+  const draw = () => {
+    const items = pf.isHistoryOn() ? pf.suggest(input.value) : [];
+    list.replaceChildren(...items.map((it) => h("li", {},
+      h("button", { type: "button", class: "sg-text", onmousedown: (e) => e.preventDefault(), onclick: () => go(it.q) }, it.q),
+      h("button", { type: "button", class: "sg-del", "aria-label": `Delete "${it.q}" from history`, title: "Delete from history",
+        onmousedown: (e) => e.preventDefault(),
+        onclick: () => { pf.deleteSearch(it.q); draw(); } }, "\u00d7"))));
+    list.style.top = form.offsetHeight + 8 + "px";
+    list.hidden = items.length === 0; sel = -1;
+  };
+  input.addEventListener("focus", draw);
+  input.addEventListener("input", draw);
+  input.addEventListener("blur", () => setTimeout(hide, 120));
+  input.addEventListener("keydown", (e) => {
+    const rows = [...list.querySelectorAll("li")];
+    if (e.key === "Escape") hide();
+    else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && rows.length) {
       e.preventDefault();
-      const q = input.value.trim();
-      if (q) location.hash = `#/search?q=${encodeURIComponent(q)}`;
-    },
-  }, input, h("button", { type: "submit" }, "Search"));
+      sel = (sel + (e.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length;
+      rows.forEach((li, i) => li.classList.toggle("on", i === sel));
+      input.value = rows[sel].querySelector(".sg-text").textContent;
+    }
+  });
+  return h("div", { class: "sbwrap" }, form, list);
 }
 
 /* ---------- knowledge panels ---------- */
@@ -199,6 +227,7 @@ async function viewHome() {
 
 async function viewSearch(q) {
   document.title = `${q} - ${SITE_NAME}`;
+  pf.addSearch(q); // saved in this profile's history if history is on
   const list = h("div", { "aria-live": "polite" });
   const meta = h("p", { class: "meta-line" }, "Searching…");
   const more = h("button", { class: "btn", style: "display:none" }, "Show more results");
@@ -379,7 +408,177 @@ function viewSettings() {
       sw),
     aiRow,
     note,
+    profilesCard(),
     agreementsCard()));
+}
+
+/* ---------- profiles ---------- */
+function profileChip() {
+  const p = pf.activeProfile();
+  return h("button", { class: "profile-chip", title: "Switch or manage profiles", onclick: openProfiles },
+    h("span", { class: "avatar", style: `background:${p.color}` }, (p.name[0] || "?").toUpperCase()), h("span", { class: "pname" }, p.name), p.pin ? h("span", { class: "lock", title: "Locked with a PIN" }, "\u{1F512}") : null);
+}
+function profilesChanged() { renderHeader(); route(); } // a different profile has its own settings and history
+
+/* ---------- optional PIN dialogs ---------- */
+// fields: placeholders for the PIN boxes. validate(values) may return an error message (or "" when fine).
+// Resolves to {values}, {action} when an extra button was pressed, or null when cancelled.
+function pinDialog({ title, lead, fields, confirm = "Save", cancel = "Cancel", extras = [], locked = false, validate }) {
+  return new Promise((resolve) => {
+    const dlg = h("dialog", { class: "agree pin", "aria-labelledby": "pin-title" });
+    const err = h("p", { class: "pin-err", role: "alert" });
+    const inputs = fields.map((f) => h("input", { type: "password", inputmode: "numeric", maxlength: 8, autocomplete: "off", class: "pin-in", placeholder: f, "aria-label": f }));
+    const done = (v) => { dlg.close(); resolve(v); };
+    dlg.addEventListener("close", () => dlg.remove());
+    const form = h("form", { onsubmit: async (e) => {
+      e.preventDefault();
+      const values = inputs.map((i) => i.value);
+      const msg = validate ? await validate(values) : "";
+      if (msg) { err.textContent = msg; inputs[0].value = ""; inputs[0].focus(); return; }
+      done({ values });
+    } },
+      h("h2", { id: "pin-title" }, title), lead ? h("p", { class: "hint" }, lead) : null, inputs, err,
+      h("div", { class: "agree-actions" },
+        cancel ? h("button", { class: "btn", type: "button", onclick: () => done(null) }, cancel) : null,
+        extras.map((x) => h("button", { class: "btn", type: "button", onclick: () => done({ action: x.action }) }, x.label)),
+        h("span", { class: "spacer" }), h("button", { class: "btn primary", type: "submit" }, confirm)));
+    dlg.append(form);
+    if (locked) dlg.addEventListener("cancel", (e) => e.preventDefault()); else dlg.addEventListener("cancel", () => resolve(null));
+    document.body.append(dlg); dlg.showModal(); inputs[0].focus();
+  });
+}
+const pinRule = (v) => (!pf.PIN_RE.test(v) ? "Use 4 to 8 digits." : "");
+const PIN_NOTE = "A PIN keeps casual snooping out. It doesn't encrypt your data.";
+
+/** Asks for a locked profile's PIN. Resolves "ok", "switch", "reset" (profile erased) or null (cancelled). */
+async function unlockProfile(id, name, { locked = false, canSwitch = false } = {}) {
+  const extras = [{ label: "Forgot PIN?", action: "forgot" }];
+  if (canSwitch) extras.unshift({ label: "Switch profile", action: "switch" });
+  for (;;) {
+    const r = await pinDialog({ title: `Unlock "${name}"`, lead: "Enter this profile's PIN.", fields: ["PIN"], confirm: "Unlock", cancel: locked ? null : "Cancel", extras, locked,
+      validate: async (v) => ((await pf.verifyPin(id, v[0])) ? "" : "That PIN is not right.") });
+    if (!r) return null;
+    if (r.action === "switch") return "switch";
+    if (r.action === "forgot") {
+      if (confirm(`A forgotten PIN can't be recovered. The only way back in is to erase the profile "${name}", with its search history, settings and PIN. Erase it?`)) { pf.resetProfile(id); return "reset"; }
+      continue;
+    }
+    return "ok";
+  }
+}
+// Called when the site opens: a locked active profile has to be unlocked (or another profile chosen) first.
+async function gateProfile() {
+  while (pf.activeLocked()) {
+    const p = pf.activeProfile();
+    const r = await unlockProfile(p.id, p.name, { locked: true, canSwitch: pf.listProfiles().length > 1 });
+    if (r === "switch") await openProfiles();
+  }
+}
+
+function openProfiles() {
+  return new Promise((resolve) => {
+    const dlg = h("dialog", { class: "agree profiles", "aria-labelledby": "pf-title" });
+    const close = () => { dlg.close(); };
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(); });
+    const lockedNow = (p) => p.pin && !pf.isUnlocked(p.id);
+    const draw = () => {
+      const active = pf.activeProfile().id;
+      const list = pf.listProfiles();
+      const rows = list.map((p) => {
+        const name = h("input", { type: "text", value: p.name, maxlength: 24, "aria-label": "Profile name", class: "pf-name" });
+        const rename = () => { const v = name.value.trim(); if (v && v !== p.name && !lockedNow(p)) { pf.renameProfile(p.id, v); renderHeader(); } else name.value = p.name; };
+        name.addEventListener("change", rename);
+        name.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); name.blur(); } });
+        const afterChange = () => { draw(); renderHeader(); };
+        return h("div", { class: "pf-row" + (p.id === active ? " on" : "") },
+          h("span", { class: "avatar", style: `background:${p.color}` }, (p.name[0] || "?").toUpperCase()),
+          name,
+          h("span", { class: "pf-meta" }, p.id === active ? "In use" : lockedNow(p) ? "\u{1F512} Locked" : `${p.count} saved`),
+          p.id === active ? null : h("button", { class: "btn small", onclick: async () => {
+            if (lockedNow(p)) { const r = await unlockProfile(p.id, p.name); if (r === "reset") { afterChange(); return; } if (r !== "ok") return; }
+            pf.switchTo(p.id); close(); profilesChanged();
+          } }, "Switch"),
+          p.pin
+            ? [h("button", { class: "btn small", onclick: async () => {
+                const r = await pinDialog({ title: `Change PIN for "${p.name}"`, lead: PIN_NOTE, fields: ["Current PIN", "New PIN (4\u20138 digits)", "Repeat new PIN"],
+                  validate: async (v) => (!(await pf.verifyPin(p.id, v[0])) ? "The current PIN is not right." : pinRule(v[1]) || (v[1] !== v[2] ? "The new PINs don't match." : "")) });
+                if (r) { await pf.setPin(p.id, r.values[1]); toast("PIN changed."); afterChange(); }
+              } }, "Change PIN"),
+              h("button", { class: "btn small", onclick: async () => {
+                const r = await pinDialog({ title: `Remove the PIN from "${p.name}"`, fields: ["Current PIN"], confirm: "Remove PIN",
+                  validate: async (v) => ((await pf.verifyPin(p.id, v[0])) ? "" : "That PIN is not right.") });
+                if (r) { pf.removePin(p.id); toast("PIN removed."); afterChange(); }
+              } }, "Remove PIN")]
+            : h("button", { class: "btn small", title: "Ask for a PIN to open this profile", onclick: async () => {
+                const r = await pinDialog({ title: `Set a PIN for "${p.name}"`, lead: `It will be asked when you switch to this profile, and when the site is opened in a new tab. ${PIN_NOTE}`,
+                  fields: ["New PIN (4\u20138 digits)", "Repeat PIN"], validate: (v) => pinRule(v[0]) || (v[0] !== v[1] ? "The PINs don't match." : "") });
+                if (r) { await pf.setPin(p.id, r.values[0]); toast("PIN set."); afterChange(); }
+              } }, "Set PIN"),
+          h("button", { class: "btn small danger", disabled: list.length < 2, title: "Delete this profile, its settings and its history", onclick: async () => {
+            if (lockedNow(p)) { const r = await unlockProfile(p.id, p.name); if (r === "reset") { afterChange(); return; } if (r !== "ok") return; }
+            if (!confirm(`Delete the profile "${p.name}" with its search history and settings? This can't be undone.`)) return;
+            const wasActive = p.id === active;
+            pf.deleteProfile(p.id); draw(); renderHeader(); if (wasActive) { close(); profilesChanged(); }
+          } }, "Delete"));
+      });
+      const add = h("input", { type: "text", maxlength: 24, placeholder: "New profile name", "aria-label": "New profile name", class: "pf-name" });
+      const addForm = h("form", { class: "pf-add", onsubmit: (e) => {
+        e.preventDefault();
+        if (!pf.addProfile(add.value)) { toast(add.value.trim() ? "You can have up to 8 profiles." : "Type a name first."); return; }
+        close(); profilesChanged();
+      } }, add, h("button", { class: "btn small primary", type: "submit" }, "Add profile"));
+      dlg.replaceChildren(h("h2", { id: "pf-title" }, "Profiles"),
+        h("p", { class: "hint", style: "margin:0 0 .8rem" }, "Each profile has its own search history and settings, kept on this device only. A PIN is optional and is set per profile."),
+        h("div", { class: "pf-list" }, rows), addForm,
+        h("div", { class: "agree-actions" }, h("span", { class: "spacer" }), h("button", { class: "btn", onclick: close }, "Done")));
+    };
+    draw();
+    document.body.append(dlg);
+    dlg.showModal();
+    dlg.querySelector(".agree-actions .btn").focus();
+  });
+}
+
+function profilesCard() {
+  const p = pf.activeProfile();
+  const on = pf.isHistoryOn();
+  const sw = h("button", { class: "switch", role: "switch", "aria-checked": String(on), "aria-labelledby": "hist-label" }, h("span", { class: "knob" }));
+  sw.onclick = () => { const next = sw.getAttribute("aria-checked") !== "true"; pf.setHistoryOn(next); sw.setAttribute("aria-checked", String(next)); };
+  return h("div", {},
+    h("div", { class: "card" },
+      h("h2", { style: "margin-top:0;font-size:1.1rem" }, "Profiles"),
+      h("p", { class: "sub" }, "You are using ", h("strong", {}, p.name), ". The settings above and your search history belong to this profile."),
+      h("button", { class: "btn", onclick: openProfiles }, "Manage profiles")),
+    h("div", { class: "card setting" },
+      h("div", { class: "info" }, h("strong", { id: "hist-label" }, "Save my search history"),
+        h("p", { class: "sub" }, "Keeps your last 100 searches on this device so they show up as suggestions. Nothing is sent anywhere. Turning it off stops saving but doesn't delete what is already saved."),
+        h("a", { href: "#/history" }, "View or delete my history")),
+      sw));
+}
+
+function viewHistory() {
+  const p = pf.activeProfile();
+  document.title = `Search history - ${SITE_NAME}`;
+  const box = h("div", {});
+  const when = (t) => new Date(t).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const draw = () => {
+    const items = pf.getHistory();
+    const on = pf.isHistoryOn();
+    const clear = h("button", { class: "btn danger", disabled: !items.length, onclick: () => {
+      if (!confirm(`Delete all ${items.length} saved searches for "${p.name}"?`)) return;
+      pf.clearHistory(); draw(); toast("History deleted.");
+    } }, "Delete all");
+    box.replaceChildren(
+      h("p", { class: "hint", style: "margin:0 0 1rem" }, on ? "New searches are being saved to this profile." : "History is off for this profile, so new searches are not saved. ", on ? null : h("a", { href: "#/settings" }, "Change in Settings")),
+      items.length ? h("div", { class: "hist-list" }, items.map((it) => h("div", { class: "hist-row" },
+        h("a", { class: "hist-q", href: `#/search?q=${encodeURIComponent(it.q)}` }, it.q),
+        h("span", { class: "hist-when" }, when(it.t)),
+        h("button", { class: "btn small", "aria-label": `Delete "${it.q}"`, onclick: () => { pf.deleteSearch(it.q); draw(); } }, "Delete")))) : h("p", { class: "empty" }, "No saved searches."),
+      h("div", { style: "margin-top:1rem" }, clear));
+  };
+  draw();
+  $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Search history"),
+    h("p", { class: "intro" }, `Searches saved for the profile "${p.name}", on this device only.`), box));
 }
 
 function agreementsCard() {
@@ -827,6 +1026,7 @@ function route() {
   if (path === "/edit-panel") return viewEditPanel(params.get("id") || null);
   if (path === "/panel-request") return viewPanelRequest();
   if (path === "/settings") return viewSettings();
+  if (path === "/history") return viewHistory();
   if (path === "/manage") return viewManage();
   if (path === "/app-signin") return viewAppSignin();
   return viewHome();
@@ -836,13 +1036,14 @@ window.addEventListener("hashchange", route);
 function renderFooter() {
   $foot.replaceChildren(
     legalLink("terms.html", "Terms and Conditions"), " · ", legalLink("privacy.html", "Privacy Policy"), " · ",
+    h("a", { href: "#/history" }, "Search history"), " \u00b7 ",
     h("a", { href: "#/settings" }, "Your agreements"));
 }
 renderFooter();
 
 // First visit (or the terms changed): ask before anything else. Declining leaves the site unused.
 firstVisit().then((agreed) => {
-  if (agreed) return;
+  if (agreed) { gateProfile().then(() => { renderHeader(); route(); }); return; } // a locked profile asks for its PIN
   $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Agreement needed"),
     h("p", { class: "intro" }, "SPS Search can't be used until you agree to the Terms and Conditions and the Privacy Policy. Nothing has been saved."),
     h("p", {}, legalLink("terms.html", "Read the Terms"), " · ", legalLink("privacy.html", "Read the Privacy Policy")),

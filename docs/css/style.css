@@ -243,3 +243,41 @@ dialog.agree p { margin: 0 0 .6rem; }
 .legal th, .legal td { text-align: left; vertical-align: top; padding: .55rem .6rem; border-bottom: 1px solid var(--line); }
 .legal th { color: var(--muted); font-weight: 600; }
 .legal .note { border-left: 4px solid var(--accent); background: var(--surface); padding: .8rem 1rem; border-radius: 0 8px 8px 0; margin: 1rem 0; max-width: 44rem; }
+
+/* ---------- profiles + history ---------- */
+.sbwrap { position: relative; max-width: 46rem; width: 100%; }
+.suggest { position: absolute; left: 0; right: 0; z-index: 20; list-style: none; margin: 0; padding: .3rem; background: var(--surface); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 4px 4px 0 var(--ink); }
+.suggest[hidden] { display: none; }
+.suggest li { display: flex; align-items: center; border-radius: 8px; }
+.suggest li:hover, .suggest li.on { background: var(--bg); }
+.suggest button { border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; border-radius: 8px; }
+.suggest .sg-text { flex: 1; text-align: left; padding: .55rem .7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggest .sg-del { flex: none; width: 2.2rem; height: 2.2rem; font-size: 1.2rem; color: var(--muted); }
+.suggest .sg-del:hover { color: var(--danger); }
+
+.profile-chip { display: inline-flex; align-items: center; gap: .4rem; padding: .15rem .6rem .15rem .2rem; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: .9rem; cursor: pointer; }
+.profile-chip:hover { border-color: var(--ink); }
+.profile-chip .pname { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { flex: none; display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; color: #fff; font-weight: 700; font-size: .85rem; }
+
+dialog.profiles { width: min(34rem, 94vw); }
+.pf-list { display: grid; gap: .5rem; margin-bottom: .8rem; }
+.pf-row { display: flex; align-items: center; gap: .5rem; padding: .45rem .5rem; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); flex-wrap: wrap; }
+.pf-row.on { border-color: var(--accent); }
+.pf-name { flex: 1; min-width: 6rem; padding: .4rem .55rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+.pf-meta { color: var(--muted); font-size: .8rem; }
+.pf-add { display: flex; gap: .5rem; margin-bottom: .6rem; }
+
+.hist-list { display: grid; gap: .4rem; max-width: 44rem; }
+.hist-row { display: flex; align-items: center; gap: .8rem; padding: .5rem .8rem; background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; }
+.hist-q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.hist-when { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+@media (max-width: 520px) { .hist-when { display: none; } .profile-chip .pname { max-width: 4.5rem; } }
+
+/* optional PIN */
+.profile-chip .lock { font-size: .8rem; }
+dialog.pin { width: min(24rem, 94vw); }
+dialog.pin .hint { margin: 0 0 .8rem; }
+.pin-in { display: block; width: 100%; margin: 0 0 .6rem; padding: .65rem .8rem; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; font-size: 1.1rem; letter-spacing: .25em; }
+.pin-in::placeholder { letter-spacing: normal; font-size: .9rem; }
+.pin-err { color: var(--danger); min-height: 1.2em; margin: 0 0 .5rem; font-size: .9rem; }

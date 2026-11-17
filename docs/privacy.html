@@ -20,9 +20,9 @@
   <main class="page legal">
 
     <h1>Privacy Policy</h1>
-    <p class="meta">SPS Search, its apps and the SPS Search New Tab extension &middot; Last updated 17 November 2026 &middot; Version 1</p>
+    <p class="meta">SPS Search, its apps and the SPS Search New Tab extension &middot; Last updated 17 November 2026 &middot; Version 2</p>
 
-    <div class="note"><strong>The short version.</strong> Searching runs in your browser, and your search words are not sent to us. Your settings and agreements stay on your device. Data leaves your device only if you turn on AI overviews, sign in, or submit a site or panel, and this page says exactly what is sent and where. No ads, no analytics, and we do not sell personal information.</div>
+    <div class="note"><strong>The short version.</strong> Searching runs in your browser, and your search words are not sent to us. Your settings, agreements, profiles and saved searches stay on your device. Data leaves your device only if you turn on AI overviews, sign in, or submit a site or panel, and this page says exactly what is sent and where. No ads, no analytics, and we do not sell personal information.</div>
 
     <h2>1. Who we are</h2>
     <p>"We" means the operator of SPS Search and the SPS Search New Tab extension. Contact: <a href="https://github.com/8493834/search/issues">open an issue on the SPS Search GitHub page</a>.</p>
@@ -30,8 +30,9 @@
     <h2>2. What we handle</h2>
     <table>
       <tr><th>What</th><th>Where it goes</th><th>Why</th></tr>
-      <tr><td><strong>Search words</strong></td><td>Stay in your browser. Searching uses a search index that your browser downloads from this site, and the words sit in the page address after the <code>#</code>, which browsers do not send to servers. They are sent elsewhere only if you turn on AI overviews (section 3).</td><td>To show results</td></tr>
-      <tr><td><strong>Settings and agreements</strong></td><td>Your device only (browser local storage). Includes your choices, the date you agreed, and a cache so the site can work offline.</td><td>To remember your choices</td></tr>
+      <tr><td><strong>Search words</strong></td><td>Stay in your browser. Searching uses a search index that your browser downloads from this site, and the words sit in the page address after the <code>#</code>, which browsers do not send to servers. They are sent elsewhere only if you turn on AI overviews (section 3). See also the next row.</td><td>To show results</td></tr>
+      <tr><td><strong>Profiles and search history</strong>: profile names, an optional PIN (kept only as a salted hash, never the PIN itself), and your last 100 searches in each profile with the time</td><td>Your device only (browser local storage). Not sent to us or anyone else. Each profile keeps its own history and settings.</td><td>To show recent searches as suggestions, and to separate people who share a device. A PIN is a courtesy lock only and does not encrypt your data. You can turn history off, delete single searches, delete all of them, or delete a whole profile</td></tr>
+      <tr><td><strong>Settings and agreements</strong></td><td>Your device only (browser local storage). Includes your choices (kept per profile), the date you agreed, and a cache so the site can work offline.</td><td>To remember your choices</td></tr>
       <tr><td><strong>Sign-in</strong>: your Google account email, an account ID and, typically, your name and profile picture</td><td>Google, through Firebase Authentication. If Firebase cannot be reached, a backup (Supabase) is used.</td><td>To sign you in. The Site uses and shows your email address</td></tr>
       <tr><td><strong>Site requests</strong>: the address, your description, your account ID and email, the time, the status</td><td>Our database (Google Firestore), copied to a backup (Supabase). Reviewed by the admin.</td><td>To review and add sites</td></tr>
       <tr><td><strong>Knowledge panel requests</strong>: name, type, website, summary, facts, links, your account ID and email, the time, the status</td><td>Same as above.</td><td>To review and add panels</td></tr>
@@ -46,7 +47,7 @@
     <p><strong>Please read this before you submit anything.</strong> Approved sites and knowledge panels are public: they appear in search, and their records can be read by anyone. <strong>Each approved record also stores the email address of the person who requested it, and that record can be read publicly.</strong> Pending requests are not public: only you and the admin can read them. If you do not want your email address stored with a public record, do not submit a request, or ask us to remove it.</p>
 
     <h2>5. The Extension</h2>
-    <p>The Extension stores, on your device only: your settings (search address, background image address, shortcuts), search counts (a total and a count per day, never the words you searched), and a record that you agreed to the terms. It asks only for the browser's <code>storage</code> permission and cannot see your browsing history, tabs or bookmarks. It loads our logo from GitHub, and a background image only if you enter an address, so those hosts can see your IP address. It opens the Site when you search, and the Site section above then applies.</p>
+    <p>The Extension stores, on your device only: your settings (search address, background image address, shortcuts), search counts (a total and a count per day), your profiles (each with its own settings and counter), and, if history is on, your last 100 searches in each profile, plus a record that you agreed to the terms. All of it stays on your device. You can turn history off, delete searches one by one or all at once, or delete a profile, from the page itself. It asks only for the browser's <code>storage</code> permission and cannot see your browsing history, tabs or bookmarks. It loads our logo from GitHub, and a background image only if you enter an address, so those hosts can see your IP address. It opens the Site when you search, and the Site section above then applies.</p>
 
     <h2>6. How we use data</h2>
     <p>Only to run the Services: show results, manage accounts and submitted sites and panels, keep things secure, and answer you. We do not sell personal information, use it for advertising, or build advertising profiles.</p>
@@ -55,10 +56,10 @@
     <p>Only the providers that help run the Services: GitHub, Google (Firebase, Firestore, Fonts), Supabase, and Cloudflare, Deno and Vercel for AI overviews. We may also disclose data if the law requires it. These providers may process data outside Australia.</p>
 
     <h2>8. How long we keep it</h2>
-    <p>Settings and agreements stay on your device until you clear them or remove the Extension. Accounts, requests and approved records stay until you ask us to delete them or we no longer need them. Indexed pages leave search after the next crawl once a site is removed.</p>
+    <p>Settings, agreements, profiles and saved searches stay on your device until you delete them, clear your browser data, or remove the Extension. Each profile keeps at most its last 100 searches. Accounts, requests and approved records stay until you ask us to delete them or we no longer need them. Indexed pages leave search after the next crawl once a site is removed.</p>
 
     <h2>9. Your choices and rights</h2>
-    <p>You can change your agreements in <a href="./#/settings">Settings</a>, sign out, turn AI overviews off, or clear your browser data. You can ask us to show you, correct or delete your data, or remove a site, panel or your email from a record. Where you live you may also be able to complain to a privacy regulator (in Australia, the Office of the Australian Information Commissioner). To ask, <a href="https://github.com/8493834/search/issues">open an issue on the SPS Search GitHub page</a>.</p>
+    <p>You can view and delete your saved searches on the <a href="./#/history">History</a> page, switch history off, or delete a profile, in <a href="./#/settings">Settings</a>. Clearing your browser data also removes them. You can change your agreements in <a href="./#/settings">Settings</a>, sign out, turn AI overviews off, or clear your browser data. You can ask us to show you, correct or delete your data, or remove a site, panel or your email from a record. Where you live you may also be able to complain to a privacy regulator (in Australia, the Office of the Australian Information Commissioner). To ask, <a href="https://github.com/8493834/search/issues">open an issue on the SPS Search GitHub page</a>.</p>
 
     <h2>10. Security</h2>
     <p>We use reasonable measures, such as access rules on our database, but no online service is completely secure.</p>
@@ -69,7 +70,7 @@
     <h2>12. Changes</h2>
     <p>We may update this policy. The date and version above show the current one, and you will be asked to agree again if a change matters.</p>
 
-    <div class="note">This is made by AI and is a general template and not legal advice. Have it checked for your situation.</div>
+    <div class="note">This is a general template and not legal advice. Have it checked for your situation.</div>
   </main>
   <footer class="foot"><a href="terms.html">Terms and Conditions</a> &middot; <a href="privacy.html">Privacy Policy</a> &middot; <a href="./#/settings">Your agreements</a></footer>
 </body>

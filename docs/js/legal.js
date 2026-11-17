@@ -2,7 +2,7 @@
 // sends data somewhere (AI overviews, submitting sites and panels, Google sign-in).
 // Stored on this device only. Bump TERMS_VERSION when the terms or policy change in a way that
 // needs people to agree again.
-export const TERMS_VERSION = 1;
+export const TERMS_VERSION = 2; // 2: search history and profiles (saved on this device)
 const KEY = "sps_consent";
 
 export const FEATURES = {
@@ -105,6 +105,7 @@ export async function firstVisit() {
     title: "Welcome to SPS Search",
     lead: el("div", {},
       el("p", {}, "Before you start, please review and agree. Searching runs in your browser, and nothing about your searches is sent to us unless you turn on a feature below."),
+      el("p", {}, "Your recent searches are saved on this device, in your own profile, so they can show up as suggestions. You can delete them or turn this off any time."),
       reviewLine()),
     boxes: [
       termsBox(),
