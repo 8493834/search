@@ -258,3 +258,18 @@ export async function deletePanel(panel) {
   const { store, db } = await load();
   await store.deleteDoc(store.doc(db, "panels", panel.id));
 }
+
+// ----- search history saved to the signed-in account (one private document per person) -----
+export async function getHistory(user) {
+  const { store, db } = await load();
+  const snap = await store.getDoc(store.doc(db, "userData", user.uid));
+  return snap.exists() && typeof snap.data().data === "string" ? snap.data().data : null;
+}
+export async function setHistory(user, json) {
+  const { store, db } = await load();
+  await store.setDoc(store.doc(db, "userData", user.uid), { data: json, updatedAt: store.serverTimestamp() });
+}
+export async function deleteHistory(user) {
+  const { store, db } = await load();
+  await store.deleteDoc(store.doc(db, "userData", user.uid));
+}

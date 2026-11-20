@@ -1,6 +1,6 @@
 // Service worker: lets the site install as an app and keep working offline.
 // Strategy: network first (always fresh when online), fall back to the last copy when offline.
-const CACHE = "sps-search-v1";
+const CACHE = "sps-search-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(

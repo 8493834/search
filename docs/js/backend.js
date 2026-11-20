@@ -54,6 +54,9 @@ export const listPanels = call("listPanels");
 export const acceptPanelRequest = call("acceptPanelRequest");
 export const denyPanelRequest = call("denyPanelRequest");
 export const deletePanel = call("deletePanel");
+export const getHistory = call("getHistory");
+export const setHistory = call("setHistory");
+export const deleteHistory = call("deleteHistory");
 
 const PROVIDERS = {
   firebase: { name: "Firebase", ready: FIREBASE_READY, load: async () => fb },

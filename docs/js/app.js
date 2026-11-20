@@ -2,6 +2,7 @@ import { SITE_NAME, SITE_URL, GITHUB_REPO, FIREBASE_READY, OVERVIEW_API_URL, OVE
 import { SearchEngine, buildOverview, tokenize, stem } from "./engine.js";
 import { getSetting, setSetting } from "./settings.js";
 import * as pf from "./profiles.js";
+import * as sync from "./sync.js";
 import * as be from "./backend.js";
 import { findPanel, factPairs, aliasesFor, linkPairs, LINK_SITES } from "./panels.js";
 import { firstVisit, reviewAgreements, requireConsent, hasConsent, getConsent, saveConsent, featureCard, reviewLine, legalLink, FEATURES } from "./legal.js";
@@ -539,6 +540,61 @@ function openProfiles() {
   });
 }
 
+function cloudCard() {
+  const on = sync.isCloudEnabled();
+  const sw = h("button", { class: "switch", role: "switch", "aria-checked": String(on), "aria-labelledby": "cloud-label" }, h("span", { class: "knob" }));
+  const status = h("p", { class: "hint", role: "status" });
+  const draw = () => {
+    const s = sync.getCloudStatus();
+    status.textContent = s.state === "off" ? "Off. History stays on this device." : s.state === "signin" ? "Sign in (top right) to save your history to your account."
+      : s.state === "ok" ? "Saved to " + (state.user && state.user.email) + ". Last checked " + new Date(s.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + "."
+      : s.state === "error" ? "Couldn't reach your account just now. It will try again." : "Checking\u2026";
+  };
+  sw.onclick = () => {
+    const next = sw.getAttribute("aria-checked") !== "true";
+    sw.setAttribute("aria-checked", String(next));
+    sync.setCloudEnabled(next); draw();
+    if (next) sync.syncNow().then(draw);
+  };
+  const del = h("button", { class: "btn small", onclick: async () => {
+    if (!confirm("Delete the copy of your search history saved to your account? History on your devices is kept.")) return;
+    try { await sync.deleteCloudCopy(); toast("Online copy deleted."); } catch (e) { toast("Couldn't delete it: " + (e.message || e)); }
+  } }, "Delete online copy");
+  draw();
+  if (on && state.user) sync.syncNow().then(draw);
+  return h("div", { class: "card setting" },
+    h("div", { class: "info" }, h("strong", { id: "cloud-label" }, "Save history to my account"),
+      h("p", { class: "sub" }, "Saves your profiles and search history online under your signed-in account, so you can see them on your other devices. Only you can read it. PINs are never sent. Off by default; turn it off any time."),
+      status, state.user ? del : null),
+    sw);
+}
+
+function syncCard() {
+  const on = sync.isEnabled();
+  const sw = h("button", { class: "switch", role: "switch", "aria-checked": String(on), "aria-labelledby": "sync-label" }, h("span", { class: "knob" }));
+  const status = h("p", { class: "hint", role: "status" });
+  const draw = () => {
+    const s = sync.getStatus();
+    status.textContent = s.state === "off" ? "Off." : s.state === "ok" ? "Connected to the extension. Last checked " + new Date(s.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + "."
+      : s.state === "none" ? "The extension wasn't found in this browser, so nothing is being shared. Install or reload the SPS Search New Tab extension, then press Check now."
+      : s.state === "error" ? "Couldn't sync just now. It will try again." : "Checking\u2026";
+  };
+  sw.onclick = () => {
+    const next = sw.getAttribute("aria-checked") !== "true";
+    sw.setAttribute("aria-checked", String(next));
+    sync.setEnabled(next); draw();
+    if (next) sync.syncNow().then(draw);
+  };
+  const check = h("button", { class: "btn small", onclick: async () => { status.textContent = "Checking\u2026"; await sync.syncNow(); draw(); } }, "Check now");
+  draw();
+  if (sync.getStatus().state === "unknown") sync.syncNow().then(draw);
+  return h("div", { class: "card setting" },
+    h("div", { class: "info" }, h("strong", { id: "sync-label" }, "Share history with the SPS Search New Tab extension"),
+      h("p", { class: "sub" }, "Keeps the same profiles and search history here and in the extension. It all stays on this device and nothing is sent over the internet. Turn it off to keep them separate."),
+      status, check),
+    sw);
+}
+
 function profilesCard() {
   const p = pf.activeProfile();
   const on = pf.isHistoryOn();
@@ -553,7 +609,8 @@ function profilesCard() {
       h("div", { class: "info" }, h("strong", { id: "hist-label" }, "Save my search history"),
         h("p", { class: "sub" }, "Keeps your last 100 searches on this device so they show up as suggestions. Nothing is sent anywhere. Turning it off stops saving but doesn't delete what is already saved."),
         h("a", { href: "#/history" }, "View or delete my history")),
-      sw));
+      sw),
+    syncCard(), cloudCard());
 }
 
 function viewHistory() {
@@ -1041,9 +1098,12 @@ function renderFooter() {
 }
 renderFooter();
 
+// The extension's side of the history sync changed something here (a profile, a search...): redraw what shows it.
+window.addEventListener("sps-profiles-changed", () => { renderHeader(); if (/^#\/(history|settings)/.test(location.hash)) route(); });
+
 // First visit (or the terms changed): ask before anything else. Declining leaves the site unused.
 firstVisit().then((agreed) => {
-  if (agreed) { gateProfile().then(() => { renderHeader(); route(); }); return; } // a locked profile asks for its PIN
+  if (agreed) { gateProfile().then(() => { renderHeader(); route(); sync.start(); }); return; } // a locked profile asks for its PIN
   $app.replaceChildren(h("section", { class: "page" }, h("h1", {}, "Agreement needed"),
     h("p", { class: "intro" }, "SPS Search can't be used until you agree to the Terms and Conditions and the Privacy Policy. Nothing has been saved."),
     h("p", {}, legalLink("terms.html", "Read the Terms"), " · ", legalLink("privacy.html", "Read the Privacy Policy")),
@@ -1054,6 +1114,7 @@ renderHeader();
 route(); // draw the page right away; never wait for Firebase (it may be slow, blocked or offline)
 be.onUser((user) => {
   state.user = user;
+  sync.setUser(user);
   renderHeader();
   route(); // re-render so signed-in / admin views update
 }).catch(() => {});
