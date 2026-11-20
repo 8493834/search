@@ -25,6 +25,17 @@ function save(d) {
   try { localStorage.setItem(KEY, JSON.stringify(d)); mem = null; return true; }
   catch { mem = d; return false; }
 }
+// Anything that changes a profile goes through commit(), so the sync with the extension (sync.js) hears about it.
+let listener = null;
+export const onChange = (cb) => { listener = cb; };
+const commit = (d) => { const ok = save(d); if (ok && listener) listener(); return ok; };
+const touch = (p) => { p.updatedAt = Date.now(); }; // "this profile was changed now" (used to settle which side wins when syncing)
+const forgetSearch = (p, q) => { // remember that a search was deleted, so syncing doesn't bring it back
+  p.del = { ...(p.del || {}), [String(q).toLowerCase()]: Date.now() };
+  const keep = Object.entries(p.del).sort((a, b) => b[1] - a[1]).slice(0, 200);
+  p.del = Object.fromEntries(keep);
+};
+
 // Create the first profile straight away so it is remembered.
 export function init() { const d = load(); save(d); return d; }
 
@@ -36,27 +47,28 @@ export const activeProfile = () => { const p = withActive(load()); return { id: 
 export function switchTo(id) {
   const d = load();
   if (!d.list.some((p) => p.id === id)) return false;
-  d.active = id; return save(d);
+  d.active = id; return save(d); // which profile is in use is not synced, so this doesn't commit
 }
 export function addProfile(name) {
   const d = load();
   name = String(name || "").trim().slice(0, 24);
   if (!name || d.list.length >= 8) return null;
-  const p = make(name, d.list.length); d.list.push(p); d.active = p.id; save(d); return p.id;
+  const p = make(name, d.list.length, { updatedAt: Date.now() }); d.list.push(p); d.active = p.id; commit(d); return p.id;
 }
 export function renameProfile(id, name) {
   const d = load(); const p = d.list.find((x) => x.id === id);
   name = String(name || "").trim().slice(0, 24);
   if (!p || !name) return false;
-  p.name = name; return save(d);
+  p.name = name; touch(p); return commit(d);
 }
 /** Deletes the profile with its history and settings. The last profile can't be deleted. */
 export function deleteProfile(id) {
   const d = load();
   if (d.list.length < 2) return false;
   d.list = d.list.filter((p) => p.id !== id);
+  d.gone = { ...(d.gone || {}), [id]: Date.now() }; // remembered, so syncing doesn't bring the profile back
   if (d.active === id) d.active = d.list[0].id;
-  return save(d);
+  return commit(d);
 }
 
 /* ---------- optional PIN ----------
@@ -87,17 +99,17 @@ export async function setPin(id, pin) {
   const d = load(); const p = findP(d, id); if (!p) return false;
   const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
   p.pin = { salt, hash: await derive(String(pin), salt) };
-  save(d); markUnlocked(id); return true;
+  touch(p); commit(d); markUnlocked(id); return true;
 }
 export function removePin(id) { // the caller checks the current PIN first
-  const d = load(); const p = findP(d, id); if (!p) return false; delete p.pin; return save(d);
+  const d = load(); const p = findP(d, id); if (!p) return false; delete p.pin; touch(p); return commit(d);
 }
 /** "Forgot PIN": erases the profile (history, settings, PIN). The last profile is wiped but kept. */
 export function resetProfile(id) {
   const d = load();
   if (d.list.length > 1) return deleteProfile(id);
   const p = findP(d, id); if (!p) return false;
-  p.history = []; p.settings = {}; delete p.pin; p.historyOn = true; return save(d);
+  p.history = []; p.settings = {}; delete p.pin; p.historyOn = true; p.del = {}; p.clearedAt = Date.now(); touch(p); return commit(d);
 }
 
 /* ---------- per-profile settings ---------- */
@@ -111,21 +123,21 @@ export function setProfileSetting(name, value) {
 export const getHistory = () => (activeLocked() ? [] : withActive(load()).history.slice());
 export const isHistoryOn = () => !activeLocked() && withActive(load()).historyOn;
 export function setHistoryOn(on) {
-  const d = load(); const p = withActive(d); p.historyOn = !!on; return save(d); // turning it off keeps what is saved until you delete it
+  const d = load(); const p = withActive(d); p.historyOn = !!on; touch(p); return commit(d); // turning it off keeps what is saved until you delete it
 }
 export function addSearch(q) {
   q = String(q || "").trim().slice(0, 200);
   const d = load(); const p = withActive(d);
   if (!q || !p.historyOn || activeLocked()) return;
   p.history = [{ q, t: Date.now() }, ...p.history.filter((x) => x.q.toLowerCase() !== q.toLowerCase())].slice(0, MAX_HISTORY);
-  save(d);
+  commit(d);
 }
 export function deleteSearch(q) {
   const d = load(); const p = withActive(d);
-  p.history = p.history.filter((x) => x.q !== q); return save(d);
+  p.history = p.history.filter((x) => x.q !== q); forgetSearch(p, q); return commit(d);
 }
 export function clearHistory() {
-  const d = load(); const p = withActive(d); p.history = []; return save(d);
+  const d = load(); const p = withActive(d); p.history = []; p.del = {}; p.clearedAt = Date.now(); return commit(d);
 }
 /** Recent searches that start with or contain the typed text (newest first). */
 export function suggest(text, limit = 6) {
@@ -134,4 +146,33 @@ export function suggest(text, limit = 6) {
   const starts = h.filter((x) => x.q.toLowerCase().startsWith(t));
   const rest = t ? h.filter((x) => !x.q.toLowerCase().startsWith(t) && x.q.toLowerCase().includes(t)) : [];
   return [...starts, ...rest].slice(0, limit);
+}
+
+/* ---------- sync with the extension (see sync.js) ---------- */
+/** The shared part of every profile: names, history on/off, history, PIN and what was deleted. Not colours, not settings. */
+export function exportShared() {
+  const d = load();
+  return {
+    list: d.list.map((p) => ({ id: p.id, name: p.name, historyOn: p.historyOn, history: p.history, del: p.del || {}, clearedAt: p.clearedAt || 0, updatedAt: p.updatedAt || 0, ...(p.pin ? { pin: p.pin } : {}) })),
+    gone: d.gone || {},
+  };
+}
+/** Applies a merged view from sync.js. Keeps this side's own things (settings, colours, which profile is in use). */
+export function importShared(m) {
+  const d = load();
+  const byId = new Map(d.list.map((p) => [p.id, p]));
+  let active = d.active;
+  const list = m.list.map((mp, i) => {
+    let p = byId.get(mp.id);
+    if (!p) { const old = Object.keys(m.alias || {}).find((k) => m.alias[k] === mp.id && byId.has(k)); if (old) p = byId.get(old); }
+    if (!p) p = make(mp.name, i); // a profile made on the extension's side
+    if (d.active === p.id) active = mp.id;
+    p.id = mp.id; p.name = mp.name; p.historyOn = mp.historyOn; p.history = mp.history;
+    p.del = mp.del; p.clearedAt = mp.clearedAt; p.updatedAt = mp.updatedAt;
+    if (mp.pin) p.pin = mp.pin; else delete p.pin;
+    return p;
+  });
+  d.list = list; d.gone = m.gone;
+  d.active = list.some((p) => p.id === active) ? active : list[0].id;
+  return save(d); // not commit(): this came from the sync, so it must not start another one
 }
