@@ -18,6 +18,10 @@ jobs:
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A personal token (secret PUSH_TOKEN) so the push counts as you and can use the ruleset's "Repository admin" bypass.
+          # If the secret isn't set, this falls back to the normal token (and the push is refused while main is protected).
+          token: ${{ secrets.PUSH_TOKEN || github.token }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
